@@ -1,0 +1,27 @@
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
+
+[[mods]]
+modId="space_simulation"
+version="1.0.0"
+displayName="Space Simulation"
+authors="XYccWA"
+description='''
+Removes air resistance from all entities - perfect for space-like physics.
+箭矢、三叉戟、雪球、鸡蛋、掉落物等所有实体都将不受空气阻力影响。
+'''
+
+[[dependencies.space_simulation]]
+modId="forge"
+mandatory=true
+versionRange="[46,)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.space_simulation]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20,1.21)"
+ordering="NONE"
+side="BOTH"
