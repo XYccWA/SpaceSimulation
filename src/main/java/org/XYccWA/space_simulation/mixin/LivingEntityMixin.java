@@ -24,6 +24,9 @@ public class LivingEntityMixin {
         }
     }
 
+    private static final float RADIAN_CONVERTER = (float) (Math.PI / 180.0);
+    private static final float DAMPING_FACTOR = 1.0F; // 阻尼系数
+
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void onTravel(Vec3 travelVector, CallbackInfo ci) {
         Entity entity = (Entity) (Object) this;
@@ -35,37 +38,40 @@ public class LivingEntityMixin {
 
             ci.cancel();
 
-            // 获取输入
-            float forward = player.zza;  // W/S
-            float strafe = player.xxa;   // A/D
+            float forward = player.zza;
+            float strafe = player.xxa;
 
-            // 获取视角角度
             float yaw = player.getYRot();
             float pitch = player.getXRot();
 
-            // 计算移动方向（基于玩家视线）
-            // 将角度转换为弧度
-            double yawRad = Math.toRadians(yaw);
-            double pitchRad = Math.toRadians(pitch);
+            // 使用预计算的弧度转换
+            double yawRad = yaw * RADIAN_CONVERTER;
+            double pitchRad = pitch * RADIAN_CONVERTER;
 
-            // 计算基于视角的移动方向
-            // 使用完整的3D旋转矩阵计算
-            double x = -Math.sin(yawRad) * Math.cos(pitchRad) * forward + Math.cos(yawRad) * strafe;
-            double y = -Math.sin(pitchRad) * forward;  // 修改这里，添加负号
-            double z = Math.cos(yawRad) * Math.cos(pitchRad) * forward + Math.sin(yawRad) * strafe;
-
-            // 获取当前速度
             Vec3 currentVelocity = entity.getDeltaMovement();
+            Vec3 newVelocity;
 
-            // 计算新的移动增量（加速度）
-            Vec3 acceleration = new Vec3(x, y, z).normalize().scale(0.02F);
+            if (forward == 0 && strafe == 0) {
+                // 无输入时应用阻尼效果
+                newVelocity = currentVelocity.scale(DAMPING_FACTOR);
+            } else {
+                // 有输入时计算加速度
+                double x = -Math.sin(yawRad) * Math.cos(pitchRad) * forward + Math.cos(yawRad) * strafe;
+                double y = -Math.sin(pitchRad) * forward;
+                double z = Math.cos(yawRad) * Math.cos(pitchRad) * forward + Math.sin(yawRad) * strafe;
 
-            // 叠加加速度到当前速度
-            Vec3 newVelocity = currentVelocity.add(acceleration);
+                Vec3 acceleration = new Vec3(x, y, z).normalize().scale(0.02F);
+                newVelocity = currentVelocity.add(acceleration);
+            }
 
             // 应用新速度
-            entity.setDeltaMovement(newVelocity);
-            entity.move(MoverType.SELF, entity.getDeltaMovement());
+            if (newVelocity.lengthSqr() > 0.0001) {
+                entity.setDeltaMovement(newVelocity);
+                entity.move(MoverType.SELF, newVelocity);
+            } else {
+                // 速度极小时完全停止
+                entity.setDeltaMovement(Vec3.ZERO);
+            }
         }
     }
 }
