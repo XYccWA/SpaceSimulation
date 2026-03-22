@@ -1,5 +1,7 @@
 package org.XYccWA.space_simulation.mixin;
 
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
@@ -9,9 +11,19 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LivingEntity.class)
 public class LivingEntityMixin {
+    @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
+    private void onHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        // 检查伤害源是否为虚空伤害
+        if (source.typeHolder().is(DamageTypes.FELL_OUT_OF_WORLD)) {
+            // 取消伤害事件
+            cir.setReturnValue(false);
+        }
+    }
+
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void onTravel(Vec3 travelVector, CallbackInfo ci) {
         Entity entity = (Entity) (Object) this;
