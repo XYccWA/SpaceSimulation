@@ -4,8 +4,12 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.XYccWA.space_simulation.item.SpaceSimulationModItems;
+import org.XYccWA.space_simulation.item.SpaceSimulationCreativeTab;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.util.Random;
@@ -20,8 +24,15 @@ public class SpaceSimulationMod {
     private static final int MIN_Y = -300;
     private static final Random random = new Random();
 
-    public SpaceSimulationMod() {
+    public SpaceSimulationMod(FMLJavaModLoadingContext modLoadingContext) {
         MinecraftForge.EVENT_BUS.register(this);
+
+
+
+        IEventBus modEventBus = modLoadingContext.getModEventBus();
+
+        SpaceSimulationModItems.ITEMS.register(modEventBus);
+        SpaceSimulationCreativeTab.CREATIVE_MODE_TABS.register(modEventBus);
     }
 
     @SubscribeEvent
