@@ -18,7 +18,7 @@ public class LivingEntityMixin {
     @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
     private void onHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         // 检查伤害源是否为虚空伤害
-        if (source.typeHolder().is(DamageTypes.FELL_OUT_OF_WORLD)) {
+        if (source.typeHolder().is(DamageTypes.FELL_OUT_OF_WORLD)||source.typeHolder().is(DamageTypes.FALL)) {
             // 取消伤害事件
             cir.setReturnValue(false);
         }
@@ -52,10 +52,8 @@ public class LivingEntityMixin {
             Vec3 newVelocity;
 
             if (forward == 0 && strafe == 0) {
-                // 无输入时应用阻尼效果
                 newVelocity = currentVelocity.scale(DAMPING_FACTOR);
             } else {
-                // 有输入时计算加速度
                 double x = -Math.sin(yawRad) * Math.cos(pitchRad) * forward + Math.cos(yawRad) * strafe;
                 double y = -Math.sin(pitchRad) * forward;
                 double z = Math.cos(yawRad) * Math.cos(pitchRad) * forward + Math.sin(yawRad) * strafe;
