@@ -3,10 +3,10 @@ package org.XYccWA.space_simulation.item;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.ArmorMaterials;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.RegistryObject;
-import org.XYccWA.space_simulation.SpaceSimulationMod;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
+import org.XYccWA.space_simulation.SpaceSimulationMod;
 
 public class SpaceSimulationModItems {
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, SpaceSimulationMod.MOD_ID);

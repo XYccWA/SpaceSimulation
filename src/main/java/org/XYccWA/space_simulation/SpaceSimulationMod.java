@@ -1,17 +1,18 @@
 package org.XYccWA.space_simulation;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.core.BlockPos;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.XYccWA.space_simulation.item.SpaceSimulationModItems;
 import org.XYccWA.space_simulation.item.SpaceSimulationCreativeTab;
+import org.XYccWA.space_simulation.item.SpaceSimulationModItems;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import java.util.Random;
 
 @Mod(SpaceSimulationMod.MOD_ID)
@@ -19,7 +20,7 @@ public class SpaceSimulationMod {
     public static final String MOD_ID = "space_simulation";
     public static final Logger LOGGER = LogManager.getLogger(MOD_ID);
 
-    private static final int SPAWN_DISTANCE = 20000000;
+    private static final int SPAWN_DISTANCE = 15000000;
     private static final int MAX_Y = 300;
     private static final int MIN_Y = -300;
     private static final Random random = new Random();
@@ -33,6 +34,7 @@ public class SpaceSimulationMod {
 
         SpaceSimulationModItems.ITEMS.register(modEventBus);
         SpaceSimulationCreativeTab.CREATIVE_MODE_TABS.register(modEventBus);
+
     }
 
     @SubscribeEvent
