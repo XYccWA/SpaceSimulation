@@ -1,0 +1,6 @@
+{
+  "itemGroup.space_simulation.creative_tab": "Space Simulation",
+
+  "death.attack.high_g_force": "%1$s died from excessive G-force",
+  "death.attack.high_g_force.player": "%1$s was killed by %2$s while experiencing excessive G-force"
+}
