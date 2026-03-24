@@ -28,12 +28,8 @@ public class HighGForceDamage {
             return;
         }
         Player player = event.player;
-        player.sendSystemMessage(Component.literal(String.format(
-                "速度: %.2f 格/秒 | 加速度: %.2f 格/秒²",
-                PlayerPositionTracker.speed,
-                PlayerPositionTracker.acceleration
-        )));
-        if(PlayerPositionTracker.acceleration > 200||PlayerPositionTracker.acceleration < -200){
+
+        if(PlayerPositionTracker.getPlayerAcceleration(player) > 200||PlayerPositionTracker.getPlayerAcceleration(player) < -200){
 
             DamageSource damageSource = new DamageSource(
                     player.level().registryAccess()

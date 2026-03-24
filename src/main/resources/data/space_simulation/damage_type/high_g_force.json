@@ -1,5 +1,5 @@
 {
   "message_id": "high_g_force",
   "exhaustion": 0.2,
-  "scaling": "always"
+  "scaling": "never"
 }

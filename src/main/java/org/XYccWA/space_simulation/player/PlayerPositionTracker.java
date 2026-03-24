@@ -20,6 +20,7 @@ public class PlayerPositionTracker {
     private static class MovementData {
         net.minecraft.world.phys.Vec3 lastPosition;
         double lastSpeedPerSecond;
+        double currentAcceleration;
         // 使用循环队列存储最近的速度值
         private final double[] speedHistory;
         private int historyIndex;
@@ -91,16 +92,32 @@ public class PlayerPositionTracker {
         // 计算加速度（格/秒²）
         double acceleration = velocityChange * 20;
 
+        // 存储加速度到数据对象中
+        data.currentAcceleration = acceleration;
+
         // 发送坐标、速度和加速度到聊天栏
-        player.sendSystemMessage(Component.literal(String.format(
-                "位置: X: %.2f, Y: %.2f, Z: %.2f | 速度: %.2f 格/秒 | 加速度: %.2f 格/秒²",
-                currentPosition.x, currentPosition.y, currentPosition.z,
-                smoothedSpeed,
-                acceleration
-        )));
+//        player.sendSystemMessage(Component.literal(String.format(
+//                "位置: X: %.2f, Y: %.2f, Z: %.2f | 速度: %.2f 格/秒 | 加速度: %.2f 格/秒²",
+//                currentPosition.x, currentPosition.y, currentPosition.z,
+//                smoothedSpeed,
+//                acceleration
+//        )));
 
         // 更新数据
         data.lastPosition = currentPosition;
         data.lastSpeedPerSecond = smoothedSpeed;
+    }
+
+
+
+    public static double getPlayerSmoothedSpeed(Player player) {
+        MovementData data = playerDataMap.get(player);
+        return data != null ? data.lastSpeedPerSecond : 0;
+    }
+
+
+    public static double getPlayerAcceleration(Player player) {
+        MovementData data = playerDataMap.get(player);
+        return data != null ? data.currentAcceleration : 0;
     }
 }
