@@ -7,10 +7,7 @@ modId="space_simulation"
 version="1.0.0"
 displayName="Space Simulation"
 authors="XYccWA"
-description='''
-Removes air resistance from all entities - perfect for space-like physics.
-箭矢、三叉戟、雪球、鸡蛋、掉落物等所有实体都将不受空气阻力影响。
-'''
+description=''''''
 
 [[dependencies.space_simulation]]
 modId="forge"
@@ -23,5 +20,12 @@ side="BOTH"
 modId="minecraft"
 mandatory=true
 versionRange="[1.20,1.21)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.space_simulation]]
+modId="valkyrienskies"
+mandatory=true
+versionRange="[2.4,)"    # 对应2.4.10版本
 ordering="NONE"
 side="BOTH"
