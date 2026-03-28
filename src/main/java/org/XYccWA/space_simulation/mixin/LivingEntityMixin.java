@@ -167,10 +167,16 @@ public class LivingEntityMixin {
         // 检测玩家是否有运动输入
         float forward = player.zza;
         float strafe = player.xxa;
-        boolean hasInput = forward != 0 || strafe != 0;
+
+        // 检测垂直运动按键
+        long window = Minecraft.getInstance().getWindow().getWindow();
+        boolean spacePressed = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_SPACE);
+        boolean cPressed = InputConstants.isKeyDown(window, GLFW.GLFW_KEY_C);
+
+        boolean hasInput = forward != 0 || strafe != 0 || spacePressed || cPressed;
 
         if (hasInput) {
-            // 有输入时执行自由运动逻辑
+            // 有任何输入时执行自由运动逻辑
             handleFreeMovement(player, Vec3.ZERO);
         } else {
             // 获取当前档位和加速度值
@@ -193,6 +199,7 @@ public class LivingEntityMixin {
             player.move(MoverType.SELF, newVelocity);
         }
     }
+
 
 
     private void changeGear(Player player, int delta) {
