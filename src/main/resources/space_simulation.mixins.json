@@ -6,7 +6,8 @@
   "refmap": "space_simulation.refmap.json",
   "mixins": [
     "EntityMixin",
-    "LivingEntityMixin"
+    "LivingEntityMixin",
+    "FluidMixin"
   ],
   "client": [
   ],
