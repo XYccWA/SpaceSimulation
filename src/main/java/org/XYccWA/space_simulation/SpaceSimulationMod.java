@@ -3,11 +3,16 @@ package org.XYccWA.space_simulation;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.XYccWA.space_simulation.block.SpaceSimulationModBlocks;
+import org.XYccWA.space_simulation.command.FuelCommand;
+import org.XYccWA.space_simulation.fluid.ModFluidTypes;
+import org.XYccWA.space_simulation.fluid.ModFluids;
 import org.XYccWA.space_simulation.item.SpaceSimulationCreativeTab;
 import org.XYccWA.space_simulation.item.SpaceSimulationModItems;
 import org.apache.logging.log4j.LogManager;
@@ -32,9 +37,15 @@ public class SpaceSimulationMod {
 
         IEventBus modEventBus = modLoadingContext.getModEventBus();
 
+        ModFluids.register(modEventBus);
+        ModFluidTypes.register(modEventBus);
         SpaceSimulationModItems.ITEMS.register(modEventBus);
+        SpaceSimulationModBlocks.BLOCKS.register(modEventBus);
         SpaceSimulationCreativeTab.CREATIVE_MODE_TABS.register(modEventBus);
 
+        MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent event) -> {
+            FuelCommand.register(event.getDispatcher());
+        });
     }
 
     @SubscribeEvent

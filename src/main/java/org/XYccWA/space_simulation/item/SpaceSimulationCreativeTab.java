@@ -19,6 +19,7 @@ public class SpaceSimulationCreativeTab {
                 output.accept(SpaceSimulationModItems.spacesuit_chestplate.get());
                 output.accept(SpaceSimulationModItems.spacesuit_leggings.get());
                 output.accept(SpaceSimulationModItems.spacesuit_boots.get());
+                output.accept(SpaceSimulationModItems.SOURCE_HYDROGRN_PEROXIDE_BUCKET.get());
             })
             .build());
 }
