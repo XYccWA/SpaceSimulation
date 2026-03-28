@@ -1,6 +1,13 @@
 {
   "itemGroup.space_simulation.creative_tab": "太空模拟",
 
-  "death.attack.high_g_force": "%1$s因压力爆大死亡",
+  "key.space_simulation.toggle_mode": "切换运动模式",
+  "key.space_simulation.gear_up": "升档",
+  "key.space_simulation.gear_down": "降档",
+  "key.space_simulation.space": "上升",
+  "key.space_simulation.c": "下降",
+  "key.categories.space_simulation": "太空模拟",
+
+"death.attack.high_g_force": "%1$s因压力爆大死亡",
   "death.attack.high_g_force.player": "%1$s在压力爆大时被 %2$s 击败"
 }
