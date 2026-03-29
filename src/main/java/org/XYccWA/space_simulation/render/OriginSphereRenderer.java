@@ -8,6 +8,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -19,9 +20,9 @@ import java.lang.reflect.Field;
 
 @Mod.EventBusSubscriber(modid = SpaceSimulationMod.MOD_ID, value = Dist.CLIENT)
 public class OriginSphereRenderer {
-    private static final int SPHERE_RADIUS = 100;
-    private static final int BRIGHTNESS = 15;
-
+    private static final int SPHERE_RADIUS = 50000;
+    private static final ResourceLocation SPHERE_TEXTURE =
+            new ResourceLocation(SpaceSimulationMod.MOD_ID, "textures/entity/sphere.png");
 
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
@@ -42,11 +43,12 @@ public class OriginSphereRenderer {
                 bufferSourceField.setAccessible(true);
                 bufferSource = (MultiBufferSource.BufferSource) bufferSourceField.get(renderBuffers);
             } catch (Exception e) {
-                e.printStackTrace();
+                SpaceSimulationMod.LOGGER.error("Failed to get render buffers", e);
                 return;
             }
 
             if (bufferSource == null) {
+                SpaceSimulationMod.LOGGER.warn("Buffer source is null");
                 return;
             }
 
@@ -57,17 +59,18 @@ public class OriginSphereRenderer {
             poseStack.pushPose();
             poseStack.translate(playerToOrigin.x, playerToOrigin.y, playerToOrigin.z);
 
-            VertexConsumer consumer = bufferSource.getBuffer(RenderType.endPortal());
-            // 渲染白色完整球面
-            renderSphere(poseStack, consumer, SPHERE_RADIUS, BRIGHTNESS);
+            // 使用更合适的渲染类型
+            VertexConsumer consumer = bufferSource.getBuffer(RenderType.entityCutout(SPHERE_TEXTURE));
+            // 渲染带纹理的球面
+            renderSphere(poseStack, consumer, SPHERE_RADIUS);
 
             poseStack.popPose();
         }
     }
 
-    private static void renderSphere(PoseStack poseStack, VertexConsumer consumer, int radius, int brightness) {
-        int latitudeLines = 100;
-        int longitudeLines = 100;
+    private static void renderSphere(PoseStack poseStack, VertexConsumer consumer, int radius) {
+        int latitudeLines = 32; // 从100降低到32
+        int longitudeLines = 64; // 从100降低到64
 
         for (int i = 0; i < latitudeLines; i++) {
             double theta1 = Math.PI * i / latitudeLines;
@@ -77,7 +80,7 @@ public class OriginSphereRenderer {
                 double phi1 = 2 * Math.PI * j / longitudeLines;
                 double phi2 = 2 * Math.PI * (j + 1) / longitudeLines;
 
-                // 使用double计算坐标
+                // 计算顶点坐标
                 double x1 = radius * Math.sin(theta1) * Math.cos(phi1);
                 double y1 = radius * Math.cos(theta1);
                 double z1 = radius * Math.sin(theta1) * Math.sin(phi1);
@@ -94,50 +97,36 @@ public class OriginSphereRenderer {
                 double y4 = radius * Math.cos(theta2);
                 double z4 = radius * Math.sin(theta2) * Math.sin(phi1);
 
-                // 计算法线
-                Vec3 normal1 = new Vec3(x1, y1, z1).normalize();
-                Vec3 normal2 = new Vec3(x2, y2, z2).normalize();
-                Vec3 normal3 = new Vec3(x3, y3, z3).normalize();
-                Vec3 normal4 = new Vec3(x4, y4, z4).normalize();
+                // 计算UV坐标
+                float u1 = (float) j / longitudeLines;
+                float v1 = (float) i / latitudeLines;
+                float u2 = (float) (j + 1) / longitudeLines;
+                float v2 = (float) (i + 1) / latitudeLines;
 
                 // 第一个三角形 (1-2-4)
-                consumer.vertex(poseStack.last().pose(), (float) x1, (float) y1, (float) z1)
-                        .uv(0, 0)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal1.x, (float) normal1.y, (float) normal1.z)
-                        .endVertex();
-
-                consumer.vertex(poseStack.last().pose(), (float) x2, (float) y2, (float) z2)
-                        .uv(1, 0)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal2.x, (float) normal2.y, (float) normal2.z)
-                        .endVertex();
-
-                consumer.vertex(poseStack.last().pose(), (float) x4, (float) y4, (float) z4)
-                        .uv(0, 1)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal4.x, (float) normal4.y, (float) normal4.z)
-                        .endVertex();
+                addVertex(consumer, poseStack, x1, y1, z1, u1, v1);
+                addVertex(consumer, poseStack, x2, y2, z2, u2, v1);
+                addVertex(consumer, poseStack, x4, y4, z4, u1, v2);
 
                 // 第二个三角形 (2-3-4)
-                consumer.vertex(poseStack.last().pose(), (float) x2, (float) y2, (float) z2)
-                        .uv(1, 0)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal2.x, (float) normal2.y, (float) normal2.z)
-                        .endVertex();
-
-                consumer.vertex(poseStack.last().pose(), (float) x3, (float) y3, (float) z3)
-                        .uv(1, 1)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal3.x, (float) normal3.y, (float) normal3.z)
-                        .endVertex();
-
-                consumer.vertex(poseStack.last().pose(), (float) x4, (float) y4, (float) z4)
-                        .uv(0, 1)
-                        .color(255, 255, 255, 255)
-                        .normal((float) normal4.x, (float) normal4.y, (float) normal4.z)
-                        .endVertex();
+                addVertex(consumer, poseStack, x2, y2, z2, u2, v1);
+                addVertex(consumer, poseStack, x3, y3, z3, u2, v2);
+                addVertex(consumer, poseStack, x4, y4, z4, u1, v2);
             }
         }
+    }
+
+    private static void addVertex(VertexConsumer consumer, PoseStack poseStack,
+                                  double x, double y, double z, float u, float v) {
+        Vec3 normal = new Vec3(x, y, z).normalize();
+
+        // 使用正确的顶点格式
+        consumer.vertex(poseStack.last().pose(), (float) x, (float) y, (float) z)
+                .color(1.0F, 1.0F, 1.0F, 1.0F)
+                .uv(u, v)
+                .overlayCoords(0, 10)
+                .uv2(0)
+                .normal((float) normal.x, (float) normal.y, (float) normal.z)
+                .endVertex();
     }
 }
