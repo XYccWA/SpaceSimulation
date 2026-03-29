@@ -4,6 +4,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.player.Player;
@@ -29,14 +30,16 @@ public class HighGForceDamage {
         }
         Player player = event.player;
 
-        if(PlayerPositionTracker.getPlayerAcceleration(player) > 200||PlayerPositionTracker.getPlayerAcceleration(player) < -200){
+        double Acceleration = Math.abs(PlayerPositionTracker.getPlayerAcceleration(player));
+
+        if(Acceleration > 300){
 
             DamageSource damageSource = new DamageSource(
                     player.level().registryAccess()
                             .registryOrThrow(Registries.DAMAGE_TYPE)
                             .getHolderOrThrow(HIGH_G_FORCE_DAMAGE)
             );
-            event.player.hurt(damageSource, 2);
+            event.player.hurt(damageSource, (float) ((Math.pow((Acceleration-500),2)/250000*9)+1));
         }
     }
 }

@@ -180,7 +180,7 @@ public class LivingEntityMixin {
     private void handleHoverMode(Player player) {
         Vec3 currentVelocity = player.getDeltaMovement();
 
-        // 使用KeyMapping检测所有运动按键
+        //使用KeyMapping检测所有运动按键
         boolean wPressed = KeyMappingHandler.W_KEY.isDown();
         boolean sPressed = KeyMappingHandler.S_KEY.isDown();
         boolean aPressed = KeyMappingHandler.A_KEY.isDown();
@@ -266,7 +266,7 @@ public class LivingEntityMixin {
         float fuelConsumptionRate = BASE_FUEL_CONSUMPTION + (newGear - 1) * FUEL_CONSUMPTION_INCREMENT;
 
         player.sendSystemMessage(Component.literal(String.format(
-                "档位: %d | 加速度: %.1f 格/秒² | 燃料消耗: %.1f 单位/秒",
+                "档位: %d | 加速度: %.2f 格/秒² | 燃料消耗: %.2f 单位/秒",
                 newGear, acceleration, fuelConsumptionRate
         )));
     }

@@ -6,6 +6,8 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.XYccWA.space_simulation.SpaceSimulationMod;
+import org.XYccWA.space_simulation.capability.CapabilityHandler;
+import org.XYccWA.space_simulation.capability.FuelRemainingCapability;
 
 @Mod.EventBusSubscriber(modid = SpaceSimulationMod.MOD_ID)
 public class PlayerPositionTracker {
@@ -97,10 +99,11 @@ public class PlayerPositionTracker {
 
         // 发送坐标、速度和加速度到聊天栏
 //        player.sendSystemMessage(Component.literal(String.format(
-//                "位置: X: %.2f, Y: %.2f, Z: %.2f | 速度: %.2f 格/秒 | 加速度: %.2f 格/秒²",
+//                "位置: X: %.2f, Y: %.2f, Z: %.2f | 速度: %.2f 格/秒 | 加速度: %.2f 格/秒² | 燃料余量: %.2f",
 //                currentPosition.x, currentPosition.y, currentPosition.z,
 //                smoothedSpeed,
-//                acceleration
+//                acceleration,
+//                player.getCapability(CapabilityHandler.FUEL_REMAINING).map(FuelRemainingCapability::getFuelRemaining).orElse(0.0f)
 //        )));
 
         // 更新数据
