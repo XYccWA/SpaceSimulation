@@ -1,11 +1,19 @@
-// src/main/java/org/XYccWA/space_simulation/capability/impl/FuelRemainingCapabilityImpl.java
 package org.XYccWA.space_simulation.capability.impl;
 
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.network.PacketDistributor;
+import org.XYccWA.space_simulation.SpaceSimulationMod;
 import org.XYccWA.space_simulation.capability.FuelRemainingCapability;
+import org.XYccWA.space_simulation.network.FuelDataSyncPacket;
 
 public class FuelRemainingCapabilityImpl implements FuelRemainingCapability {
-    private float fuelRemaining = 500.0f; // 默认燃料值
-    private float maxFuel = 10000.0f; // 默认最大燃料值
+    private final Player player;
+    private float fuelRemaining = 500.0f;
+    private float maxFuel = 10000.0f;
+
+    public FuelRemainingCapabilityImpl(Player player) {
+        this.player = player;
+    }
 
     @Override
     public float getFuelRemaining() {
@@ -15,16 +23,19 @@ public class FuelRemainingCapabilityImpl implements FuelRemainingCapability {
     @Override
     public void setFuelRemaining(float fuel) {
         this.fuelRemaining = Math.min(fuel, maxFuel);
+        syncData();
     }
 
     @Override
     public void consumeFuel(float amount) {
         this.fuelRemaining = Math.max(0, this.fuelRemaining - amount);
+        syncData();
     }
 
     @Override
     public void addFuel(float amount) {
         this.fuelRemaining = Math.min(maxFuel, this.fuelRemaining + amount);
+        syncData();
     }
 
     @Override
@@ -35,9 +46,13 @@ public class FuelRemainingCapabilityImpl implements FuelRemainingCapability {
     @Override
     public void setMaxFuel(float maxFuel) {
         this.maxFuel = maxFuel;
-        // 如果当前燃料值超过新的最大值，则将其限制为最大值
-        if (this.fuelRemaining > maxFuel) {
-            this.fuelRemaining = maxFuel;
+        syncData();
+    }
+
+    private void syncData() {
+        // 只在服务器端发送数据包
+        if (!this.player.level().isClientSide) {
+            SpaceSimulationMod.NETWORK.send(PacketDistributor.ALL.noArg(), new FuelDataSyncPacket(fuelRemaining, maxFuel));
         }
     }
 }

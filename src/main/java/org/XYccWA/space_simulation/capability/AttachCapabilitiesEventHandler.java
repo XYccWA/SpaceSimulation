@@ -12,8 +12,8 @@ import org.XYccWA.space_simulation.SpaceSimulationMod;
 public class AttachCapabilitiesEventHandler {
     @SubscribeEvent
     public static void onAttachCapabilitiesToPlayer(AttachCapabilitiesEvent<Entity> event) {
-        if (event.getObject() instanceof Player) {
-            event.addCapability(CapabilityHandler.ID, new FuelRemainingProvider());
+        if (event.getObject() instanceof Player player) {
+            event.addCapability(CapabilityHandler.ID, new FuelRemainingProvider(player));
         }
     }
 }
