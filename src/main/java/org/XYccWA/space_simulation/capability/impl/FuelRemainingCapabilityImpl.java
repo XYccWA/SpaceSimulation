@@ -9,7 +9,7 @@ import org.XYccWA.space_simulation.network.FuelDataSyncPacket;
 public class FuelRemainingCapabilityImpl implements FuelRemainingCapability {
     private final Player player;
     private float fuelRemaining = 500.0f;
-    private float maxFuel = 10000.0f;
+    private float maxFuel = 1000.0f;
 
     public FuelRemainingCapabilityImpl(Player player) {
         this.player = player;

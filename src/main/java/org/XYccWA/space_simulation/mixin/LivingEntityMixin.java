@@ -25,7 +25,6 @@ public class LivingEntityMixin {
     // 原有常量
     private static final float RADIAN_CONVERTER = (float) (Math.PI / 180.0);
     private static final float DAMPING_FACTOR = 1.0F;
-    private static final Map<Player, Boolean> rKeyPressedMap = new HashMap<>();
     private static final Map<Player, Integer> gearLevelMap = new HashMap<>();
     private static final Map<Player, Long> lastGearChangeTime = new HashMap<>();
     private static final long GEAR_COOLDOWN_MS = 200;
@@ -140,9 +139,8 @@ public class LivingEntityMixin {
                 }
             }).orElse(true); // 如果没有燃料能力，默认为有燃料
 
-            if (forward == 0 && strafe == 0 && !spacePressed && !cPressed && hasFuel) {
-                newVelocity = currentVelocity.scale(DAMPING_FACTOR);
-            } else {
+            // 修复：只有在有输入且有燃料时才计算加速度
+            if (hasInput && hasFuel) {
                 Vec3 acceleration = Vec3.ZERO;
 
                 if (forward != 0 || strafe != 0) {
@@ -159,13 +157,14 @@ public class LivingEntityMixin {
                 }
 
                 newVelocity = currentVelocity.add(acceleration);
-            }
 
-            // 修改燃料消耗逻辑：只要有输入且有燃料就消耗燃料
-            if (hasInput && hasFuel) {
+                // 消耗燃料
                 player.getCapability(CapabilityHandler.FUEL_REMAINING).ifPresent(fuel -> {
                     fuel.consumeFuel(fuelPerTick);
                 });
+            } else {
+                // 无输入或无燃料时，应用阻尼减速
+                newVelocity = currentVelocity.scale(DAMPING_FACTOR);
             }
 
             if (newVelocity.lengthSqr() > 0.0001) {
@@ -216,8 +215,9 @@ public class LivingEntityMixin {
             }
         }).orElse(true); // 如果没有燃料能力，默认为有燃料
 
-        if (hasInput) {
-            // 有输入时，使用自由运动模式处理，燃料消耗率与自由运动模式相同
+        // 修复：添加燃料检查
+        if (hasInput && hasFuel) {
+            // 有输入且有燃料时，使用自由运动模式处理
             handleFreeMovement(player);
         } else {
             float accelerationValue = (BASE_ACCELERATION + (gear - 1) * ACCELERATION_INCREMENT) / 400.0F;
@@ -233,7 +233,7 @@ public class LivingEntityMixin {
             player.setDeltaMovement(newVelocity);
             player.move(MoverType.SELF, newVelocity);
 
-            // 悬停模式下减速时也按档位消耗燃料
+            // 悬停模式下减速时也按档位消耗燃料（如果有燃料）
             if (hasFuel && newVelocity.lengthSqr() > 0.0001) {
                 player.getCapability(CapabilityHandler.FUEL_REMAINING).ifPresent(fuel -> {
                     fuel.consumeFuel(fuelPerTick);

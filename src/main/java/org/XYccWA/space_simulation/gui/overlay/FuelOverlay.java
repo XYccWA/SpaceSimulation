@@ -26,6 +26,8 @@ public class FuelOverlay {
                 lastMaxFuel = maxFuel;
             }
 
+            double fuelPercentage = currentFuel/maxFuel*100;
+
             // 设置燃料显示位置到屏幕右上角
             int fuel_x = screenWidth - 60; // 距离屏幕右侧60像素
             int fuel_y = 10; // 距离屏幕顶部10像素
@@ -38,7 +40,7 @@ public class FuelOverlay {
                     fuel_x - 80, fuel_y, fuel_color);
 
             // 显示燃料余量与最大值的比值
-            String fuelText = String.format("%.1f/%.1f", currentFuel, maxFuel);
+            String fuelText = String.format("%.1f/%d", fuelPercentage , 100);
             guiGraphics.drawString(font, Component.literal(fuelText),
                     fuel_x, fuel_y, fuel_color);
         });
