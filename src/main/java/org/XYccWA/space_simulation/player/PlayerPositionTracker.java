@@ -1,123 +1,80 @@
 package org.XYccWA.space_simulation.player;
 
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.XYccWA.space_simulation.SpaceSimulationMod;
-import org.XYccWA.space_simulation.capability.CapabilityHandler;
-import org.XYccWA.space_simulation.capability.FuelRemainingCapability;
 
 @Mod.EventBusSubscriber(modid = SpaceSimulationMod.MOD_ID)
 public class PlayerPositionTracker {
 
-    // 存储玩家上一tick的位置和速度
     private static final java.util.Map<Player, MovementData> playerDataMap = new java.util.HashMap<>();
 
-    // 速度平滑窗口大小（存储最近N个tick的速度）
-    private static final int SMOOTHING_WINDOW = 5;
+    // 平滑因子，0-1之间，值越小平滑效果越强但延迟越大
+    private static final double SMOOTHING_FACTOR = 0.3;
 
-    // 内部类存储运动数据
+    // 最小速度阈值，低于此值视为静止
+    private static final double MIN_VELOCITY_THRESHOLD = 0.001;
+
     private static class MovementData {
-        net.minecraft.world.phys.Vec3 lastPosition;
-        double lastSpeedPerSecond;
+        Vec3 lastVelocity;
+        Vec3 smoothedVelocity;
         double currentAcceleration;
-        // 使用循环队列存储最近的速度值
-        private final double[] speedHistory;
-        private int historyIndex;
-        private boolean historyFilled;
 
-        MovementData(net.minecraft.world.phys.Vec3 position, double speed) {
-            this.lastPosition = position;
-            this.lastSpeedPerSecond = speed;
-            this.speedHistory = new double[SMOOTHING_WINDOW];
-            this.historyIndex = 0;
-            this.historyFilled = false;
+        MovementData(Vec3 velocity) {
+            this.lastVelocity = velocity;
+            this.smoothedVelocity = velocity;
         }
 
-        // 添加速度到历史记录并返回平滑后的速度
-        double addSpeedAndGetSmoothed(double speed) {
-            speedHistory[historyIndex] = speed;
-            historyIndex = (historyIndex + 1) % SMOOTHING_WINDOW;
-
-            if (historyIndex == 0) {
-                historyFilled = true;
-            }
-
-            // 计算平均值
-            double sum = 0;
-            int count = historyFilled ? SMOOTHING_WINDOW : historyIndex;
-            for (int i = 0; i < count; i++) {
-                sum += speedHistory[i];
-            }
-            return sum / count;
+        // 使用指数平滑处理速度向量
+        Vec3 smoothVelocity(Vec3 newVelocity) {
+            smoothedVelocity = new Vec3(
+                    SMOOTHING_FACTOR * newVelocity.x + (1 - SMOOTHING_FACTOR) * smoothedVelocity.x,
+                    SMOOTHING_FACTOR * newVelocity.y + (1 - SMOOTHING_FACTOR) * smoothedVelocity.y,
+                    SMOOTHING_FACTOR * newVelocity.z + (1 - SMOOTHING_FACTOR) * smoothedVelocity.z
+            );
+            return smoothedVelocity;
         }
     }
 
     @SubscribeEvent
     public static void onPlayerTick(TickEvent.PlayerTickEvent event) {
-        // 只在服务器端处理，且只在tick开始时处理一次
         if (event.phase != TickEvent.Phase.START || event.player.level().isClientSide()) {
             return;
         }
 
         Player player = event.player;
+        Vec3 currentVelocity = player.getDeltaMovement();
 
-        // 获取当前坐标
-        net.minecraft.world.phys.Vec3 currentPosition = player.position();
-
-        // 获取上一tick数据
         MovementData data = playerDataMap.get(player);
-
         if (data == null) {
-            // 首次记录位置，不计算速度和加速度
-            playerDataMap.put(player, new MovementData(currentPosition, 0));
+            playerDataMap.put(player, new MovementData(currentVelocity));
             return;
         }
 
-        // 计算位移向量
-        net.minecraft.world.phys.Vec3 displacement = currentPosition.subtract(data.lastPosition);
+        // 平滑处理当前速度
+        Vec3 smoothedVelocity = data.smoothVelocity(currentVelocity);
 
-        // 计算瞬时速度（格/tick）
-        double speed = displacement.length();
+        // 计算速度变化向量（格/tick）
+        Vec3 velocityChange = smoothedVelocity.subtract(data.lastVelocity);
 
-        // 转换为格/秒（1秒=20tick）
-        double speedPerSecond = speed * 20;
+        // 计算加速度向量（格/秒²）
+        Vec3 acceleration = velocityChange.scale(20 * 20);
 
-        // 使用滑动平均进行速度平滑
-        double smoothedSpeed = data.addSpeedAndGetSmoothed(speedPerSecond);
+        // 计算合加速度（加速度的模长）
+        double totalAcceleration = acceleration.length();
 
-        // 计算速度变化（格/秒）
-        double velocityChange = smoothedSpeed - data.lastSpeedPerSecond;
-
-        // 计算加速度（格/秒²）
-        double acceleration = velocityChange * 20;
-
-        // 存储加速度到数据对象中
-        data.currentAcceleration = acceleration;
-
-        // 发送坐标、速度和加速度到聊天栏
-//        player.sendSystemMessage(Component.literal(String.format(
-//                "位置: X: %.2f, Y: %.2f, Z: %.2f | 速度: %.2f 格/秒 | 加速度: %.2f 格/秒² | 燃料余量: %.2f",
-//                currentPosition.x, currentPosition.y, currentPosition.z,
-//                smoothedSpeed,
-//                acceleration,
-//                player.getCapability(CapabilityHandler.FUEL_REMAINING).map(FuelRemainingCapability::getFuelRemaining).orElse(0.0f)
-//        )));
-
-        // 更新数据
-        data.lastPosition = currentPosition;
-        data.lastSpeedPerSecond = smoothedSpeed;
+        // 存储数据
+        data.currentAcceleration = totalAcceleration;
+        data.lastVelocity = smoothedVelocity;
     }
-
-
 
     public static double getPlayerSmoothedSpeed(Player player) {
         MovementData data = playerDataMap.get(player);
-        return data != null ? data.lastSpeedPerSecond : 0;
+        return data != null ? data.smoothedVelocity.length() * 20 : 0;
     }
-
 
     public static double getPlayerAcceleration(Player player) {
         MovementData data = playerDataMap.get(player);
