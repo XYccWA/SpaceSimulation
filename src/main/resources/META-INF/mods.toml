@@ -27,5 +27,5 @@ side="BOTH"
 modId="valkyrienskies"
 mandatory=true
 versionRange="[2.4,)"    # 对应2.4.10版本
-ordering="NONE"
+ordering="AFTER"
 side="BOTH"
