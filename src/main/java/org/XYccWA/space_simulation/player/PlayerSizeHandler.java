@@ -16,8 +16,8 @@ public class PlayerSizeHandler {
         if (event.getEntity() instanceof Player) {
             // 修改宽度和高度（单位：格）
             // 原版玩家：宽 0.6，高 1.8
-            float newWidth = 1.0f;   // 你可以改成其他值
-            float newHeight = 1.0f;  // 例如改成 2 格高
+            float newWidth = 0.8f;   // 你可以改成其他值
+            float newHeight = 0.8f;  // 例如改成 2 格高
             EntityDimensions newSize = EntityDimensions.fixed(newWidth, newHeight);
 
             event.setNewSize(newSize, true);

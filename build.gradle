@@ -85,31 +85,24 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
-    mavenLocal()
-
     maven { url = 'https://maven.aliyun.com/repository/public/' }
     maven { url = 'https://maven.minecraftforge.net' }
     maven { url = "https://maven.createmod.net" } // Create, Ponder, Flywheel
     maven { url = "https://maven.ithundxr.dev/mirror" } // Registrate
     maven { url = "https://raw.githubusercontent.com/Fuzss/modresources/main/maven/" } // ForgeConfigAPIPort
     maven {
+        name = "Valkyrien Skies"
+        url = "https://maven.valkyrienskies.org"
+    }
+    maven {
         name = 'Kotlin for Forge'
         url = 'https://thedarkcolour.github.io/KotlinForForge/'
     }
     maven {
-        name = "CurseForge Maven"
-        url = "https://cursemaven.com"
-        content { includeGroup("curse.maven") }
-    }
-    maven {
-        name = "Modrinth Maven"
-        url = "https://api.modrinth.com/maven"
-        content { includeGroup("maven.modrinth") }
-    }
-    maven {
-        name = "Valkyrien Skies"
-        url = "https://maven.valkyrienskies.org"
-        allowInsecureProtocol = true
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
     }
     mavenCentral()
 }
@@ -118,12 +111,8 @@ dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.4.10'
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     implementation "thedarkcolour:kotlinforforge:${kotlin_forge}"
-    // 指定 VS 2.4.10 版本
-    api("org.valkyrienskies:valkyrienskies-120-forge:${vs2_version}") {
-        exclude group: 'com.simibubi', module: ''
-        exclude group: 'dev.engine-room', module: ''
-        exclude group: 'com.jozufozu', module: ''
-    }
+    //VS 2.4.10
+    implementation fg.deobf("curse.maven:valkyrien-skies-258371:7568034")
     implementation("org.valkyrienskies.core:api:${vscore_version}") {
         exclude group: 'org.joml', module: ''
     }
@@ -133,13 +122,12 @@ dependencies {
     implementation("org.valkyrienskies.core:util:${vscore_version}") {
         exclude group: 'org.joml', module: ''
     }
-
+    //create
     implementation(fg.deobf("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false })
     implementation(fg.deobf("net.createmod.ponder:Ponder-Forge-${minecraft_version}:${ponder_version}"))
     compileOnly(fg.deobf("dev.engine-room.flywheel:flywheel-forge-api-${minecraft_version}:${flywheel_version}"))
     runtimeOnly(fg.deobf("dev.engine-room.flywheel:flywheel-forge-${minecraft_version}:${flywheel_version}"))
     implementation(fg.deobf("com.tterrag.registrate:Registrate:${registrate_version}"))
-
 }
 
 mixin {

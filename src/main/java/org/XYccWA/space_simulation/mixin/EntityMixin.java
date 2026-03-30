@@ -14,6 +14,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class EntityMixin {
     private float customPitch = 0;
 
+    @Inject(method = "tick", at = @At("HEAD"))
+    private void onTick(CallbackInfo ci) {
+        Entity entity = (Entity) (Object) this;
+        entity.setNoGravity(true);
+    }
+
     @Inject(method = "turn", at = @At("HEAD"), cancellable = true)
     private void onTurn(double p_19885_, double p_19886_, CallbackInfo ci) {
         Entity entity = (Entity) (Object) this;
