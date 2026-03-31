@@ -6,11 +6,11 @@
   "refmap": "space_simulation.refmap.json",
   "mixins": [
     "EntityMixin",
-    "LivingEntityMixin",
     "FluidMixin",
-    "PlayerRendererMixin"
+    "LivingEntityMixin"
   ],
   "client": [
+    "PlayerRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

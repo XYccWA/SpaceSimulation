@@ -17,4 +17,5 @@ public class ClientEventHandler {
         event.registerAboveAll("speed_overlay", SpeedOverlay.HUD_SPEED);
         event.registerAboveAll("acceleration_overlay", AccelerationOverlay.HUD_ACCELERATION);
     }
+
 }

@@ -2,6 +2,7 @@ package org.XYccWA.space_simulation.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.PlayerModel;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -26,4 +27,11 @@ public abstract class PlayerRendererMixin extends LivingEntityRenderer<Player, P
         // 取消原版玩家渲染
         ci.cancel();
     }
+
+    @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true)
+    private void onRenderHand(PoseStack p_117776_, MultiBufferSource p_117777_, int p_117778_, AbstractClientPlayer p_117779_, ModelPart p_117780_, ModelPart p_117781_, CallbackInfo ci) {
+        // 取消第一人称视角的手部渲染
+        ci.cancel();
+    }
 }
+

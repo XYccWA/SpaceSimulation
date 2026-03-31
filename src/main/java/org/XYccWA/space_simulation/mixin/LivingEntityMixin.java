@@ -45,6 +45,14 @@ public class LivingEntityMixin {
         }
     }
 
+    @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
+    private void onJumpFromGround(CallbackInfo ci) {
+        Entity entity = (Entity) (Object) this;
+        if (entity instanceof Player) {
+            ci.cancel(); // 取消玩家的跳跃
+        }
+    }
+
     @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
     private void onTravel(Vec3 travelVector, CallbackInfo ci) {
         Entity entity = (Entity) (Object) this;

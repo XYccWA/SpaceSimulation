@@ -20,10 +20,11 @@ public class PlayerSpawnPoint {
 
     public static final Logger LOGGER = LogManager.getLogger(SpaceSimulationMod.MOD_ID);
 
-    private static final int INNER_RADIUS = 10000000;  // 圆环内半径
-    private static final int OUTER_RADIUS = 20000000;  // 圆环外半径
-    private static final int MAX_Y = 500;              // 最大高度
-    private static final int MIN_Y = -500;             // 最小高度
+    private static final int INNER_RADIUS = 8000000;  // 圆环内半径
+    private static final int OUTER_RADIUS = 10000000;  // 圆环外半径
+    private static final int MAX_Y = 100;              // 最大高度
+    private static final int MIN_Y = -100;             // 最小高度
+    private static boolean firstPlayerLogged = false;  // 用于记录第一个玩家是否登录
     private static final Random random = new Random();
 
     // 存储新存档的统一出生点
@@ -83,21 +84,45 @@ public class PlayerSpawnPoint {
                 if (isSpawnPointSet && unifiedSpawnPoint != null) {
                     // 检查玩家是否是首次登录（没有设置过个人出生点）
                     if (player.getRespawnPosition() == null) {
-                        // 保存出生点数据以便后续重生使用
-                        player.setRespawnPosition(player.level().dimension(),
-                                unifiedSpawnPoint,
-                                0f,
-                                true,
-                                false);
+                        // 检查是否为第一个登录的玩家
+                        if (!firstPlayerLogged) {
+                            // 标记已有玩家登录
+                            firstPlayerLogged = true;
 
-                        // 立即传送玩家到出生点
-                        player.teleportTo(unifiedSpawnPoint.getX(), unifiedSpawnPoint.getY(), unifiedSpawnPoint.getZ());
+                            // 保存出生点数据以便后续重生使用
+                            player.setRespawnPosition(player.level().dimension(),
+                                    unifiedSpawnPoint,
+                                    0f,
+                                    true,
+                                    false);
 
-                        LOGGER.info("Set player {} spawn position to unified spawn at ({}, {}, {})",
-                                player.getName().getString(),
-                                unifiedSpawnPoint.getX(),
-                                unifiedSpawnPoint.getY(),
-                                unifiedSpawnPoint.getZ());
+                            // 立即传送玩家到出生点
+                            player.teleportTo(unifiedSpawnPoint.getX(), unifiedSpawnPoint.getY(), unifiedSpawnPoint.getZ());
+
+                            player.getServer().getCommands().performPrefixedCommand(
+                                    player.createCommandSourceStack(),
+                                    "place structure minecraft:ancient_city ~ ~ ~"
+                            );
+
+                            LOGGER.info("First player {} logged in. Set spawn position to unified spawn at ({}, {}, {})",
+                                    player.getName().getString(),
+                                    unifiedSpawnPoint.getX(),
+                                    unifiedSpawnPoint.getY(),
+                                    unifiedSpawnPoint.getZ());
+                        } else {
+                            // 非第一个玩家登录的处理逻辑
+                            player.setRespawnPosition(player.level().dimension(),
+                                    unifiedSpawnPoint,
+                                    0f,
+                                    true,
+                                    false);
+                            player.teleportTo(unifiedSpawnPoint.getX(), unifiedSpawnPoint.getY(), unifiedSpawnPoint.getZ());
+                            LOGGER.info("Player {} logged in. Set spawn position to unified spawn at ({}, {}, {})",
+                                    player.getName().getString(),
+                                    unifiedSpawnPoint.getX(),
+                                    unifiedSpawnPoint.getY(),
+                                    unifiedSpawnPoint.getZ());
+                        }
                     }
                 }
             } else {
@@ -126,6 +151,11 @@ public class PlayerSpawnPoint {
 
                     // 立即传送玩家到出生点
                     player.teleportTo(x, randomY, z);
+
+                    player.getServer().getCommands().performPrefixedCommand(
+                            player.createCommandSourceStack(),
+                            "place structure minecraft:ancient_city ~ ~ ~"
+                    );
 
                     LOGGER.info("Set spawn position for player {} at ({}, {}, {})",
                             player.getName().getString(), (int)x, randomY, (int)z);

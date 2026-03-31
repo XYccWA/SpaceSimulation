@@ -12,6 +12,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.XYccWA.space_simulation.SpaceSimulationMod;
+import org.XYccWA.space_simulation.config.SpaceSimulationConfig;
 import org.XYccWA.space_simulation.player.PlayerPositionTracker;
 import org.intellij.lang.annotations.Identifier;
 
@@ -39,7 +40,7 @@ public class HighGForceDamage {
                             .registryOrThrow(Registries.DAMAGE_TYPE)
                             .getHolderOrThrow(HIGH_G_FORCE_DAMAGE)
             );
-            event.player.hurt(damageSource, (float) ((Math.pow((Acceleration-500),2)/250000*9)+1));
+            event.player.hurt(damageSource, (float) ((Math.pow((Acceleration-SpaceSimulationConfig.accelerationThreshold.get()),2)/250000*9)+1));
         }
     }
 }
