@@ -1,0 +1,13 @@
+{
+  "itemGroup.space_simulation": "Example Mod Tab",
+  "block.space_simulation.example_block": "Example Block",
+  "item.space_simulation.example_item": "Example Item",
+
+  "space_simulation.configuration.title": "SpaceSimulation Configs",
+  "space_simulation.configuration.section.space_simulation.common.toml": "SpaceSimulation Configs",
+  "space_simulation.configuration.section.space_simulation.common.toml.title": "SpaceSimulation Configs",
+  "space_simulation.configuration.items": "Item List",
+  "space_simulation.configuration.logDirtBlock": "Log Dirt Block",
+  "space_simulation.configuration.magicNumberIntroduction": "Magic Number Text",
+  "space_simulation.configuration.magicNumber": "Magic Number"
+}
