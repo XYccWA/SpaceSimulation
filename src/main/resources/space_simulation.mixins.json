@@ -1,8 +1,15 @@
 {
-  "required": true,
+  "required": false,
   "package": "org.xyccwa.space_simulation.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "server.entity.EntityMixin",
+    "server.entity.LivingEntityMixin",
+    "server.fluid.FluidMixin",
+    "server.light.LevelLightEngineMixin",
+    "server.light.BlockAndTintGetterMixin",
+    "server.light.LightEngineMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   },

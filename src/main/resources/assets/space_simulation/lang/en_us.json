@@ -1,13 +1,7 @@
 {
-  "itemGroup.space_simulation": "Example Mod Tab",
-  "block.space_simulation.example_block": "Example Block",
-  "item.space_simulation.example_item": "Example Item",
-
-  "space_simulation.configuration.title": "SpaceSimulation Configs",
-  "space_simulation.configuration.section.space_simulation.common.toml": "SpaceSimulation Configs",
-  "space_simulation.configuration.section.space_simulation.common.toml.title": "SpaceSimulation Configs",
-  "space_simulation.configuration.items": "Item List",
-  "space_simulation.configuration.logDirtBlock": "Log Dirt Block",
-  "space_simulation.configuration.magicNumberIntroduction": "Magic Number Text",
-  "space_simulation.configuration.magicNumber": "Magic Number"
+  "key.category.space_simulation": "Space Simulation",
+  "key.space_simulation.roll_left": "Roll Left",
+  "key.space_simulation.roll_right": "Roll Right",
+  "key.space_simulation.inventory": "Open Inventory",
+  "key.space_simulation.dummy_drop": ""
 }

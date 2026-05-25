@@ -1,0 +1,37 @@
+package org.xyccwa.space_simulation.client;
+
+import net.minecraft.client.KeyMapping;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import org.lwjgl.glfw.GLFW;
+import org.xyccwa.space_simulation.SpaceSimulation;
+
+
+@EventBusSubscriber(modid = SpaceSimulation.MOD_ID)
+public class KeyMappingHandler {
+    public static final KeyMapping TOGGLE_MODE_KEY = new KeyMapping("key.space_simulation.toggle_mode", GLFW.GLFW_KEY_R, "key.categories.space_simulation");
+    public static final KeyMapping GEAR_UP_KEY = new KeyMapping("key.space_simulation.gear_up", GLFW.GLFW_KEY_LEFT_SHIFT, "key.categories.space_simulation");
+    public static final KeyMapping GEAR_DOWN_KEY = new KeyMapping("key.space_simulation.gear_down", GLFW.GLFW_KEY_LEFT_CONTROL, "key.categories.space_simulation");
+    public static final KeyMapping SPACE_KEY = new KeyMapping("key.space_simulation.space", GLFW.GLFW_KEY_SPACE, "key.categories.space_simulation");
+    public static final KeyMapping C_KEY = new KeyMapping("key.space_simulation.c", GLFW.GLFW_KEY_C, "key.categories.space_simulation");
+    public static final KeyMapping W_KEY = new KeyMapping("key.space_simulation.w", GLFW.GLFW_KEY_W, "key.categories.space_simulation");
+    public static final KeyMapping S_KEY = new KeyMapping("key.space_simulation.s", GLFW.GLFW_KEY_S, "key.categories.space_simulation");
+    public static final KeyMapping A_KEY = new KeyMapping("key.space_simulation.a", GLFW.GLFW_KEY_A, "key.categories.space_simulation");
+    public static final KeyMapping D_KEY = new KeyMapping("key.space_simulation.d", GLFW.GLFW_KEY_D, "key.categories.space_simulation");
+
+
+    @SubscribeEvent
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(TOGGLE_MODE_KEY);
+        event.register(GEAR_UP_KEY);
+        event.register(GEAR_DOWN_KEY);
+        event.register(SPACE_KEY);
+        event.register(C_KEY);
+        event.register(W_KEY);
+        event.register(S_KEY);
+        event.register(A_KEY);
+        event.register(D_KEY);
+    }
+}
+
