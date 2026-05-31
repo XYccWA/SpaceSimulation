@@ -6,10 +6,10 @@
   "has_ceiling": false,
   "has_raids": true,
   "has_skylight": false,
-  "height": 992,
+  "height": 4064,
   "infiniburn": "#minecraft:infiniburn_overworld",
-  "logical_height": 992,
-  "min_y": -976,
+  "logical_height": 4064,
+  "min_y": -2032,
   "monster_spawn_block_light_limit": 0,
   "monster_spawn_light_level": {
     "type": "minecraft:constant",

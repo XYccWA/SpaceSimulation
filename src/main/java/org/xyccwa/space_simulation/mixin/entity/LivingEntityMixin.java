@@ -1,4 +1,4 @@
-package org.xyccwa.space_simulation.mixin.server.entity;
+package org.xyccwa.space_simulation.mixin.entity;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.damagesource.DamageSource;

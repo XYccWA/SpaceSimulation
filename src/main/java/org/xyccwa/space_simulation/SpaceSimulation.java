@@ -14,7 +14,7 @@ import com.mojang.logging.LogUtils;
 import net.neoforged.fml.common.Mod;
 import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
 import org.xyccwa.space_simulation.modItem.SpaceSimulationItem;
-import org.xyccwa.space_simulation.pointlight.PointLightAPI;
+import org.xyccwa.space_simulation.worldgen.ModStructurePlacements;
 
 @Mod(SpaceSimulation.MOD_ID)
 public class SpaceSimulation {
@@ -29,17 +29,7 @@ public class SpaceSimulation {
         container.registerConfig(ModConfig.Type.STARTUP, SpaceSimulationConfig.SPEC);
         //物品
         SpaceSimulationItem.ITEMS.register(modEventBus);
-        //光照
-        PointLightAPI.init();
-    }
 
-    @SubscribeEvent
-    public static void onBlockChange(BlockEvent.BreakEvent event) {
-        PointLightAPI.onBlockChange((Level) event.getLevel(), event.getPos());
-    }
-
-    @SubscribeEvent
-    public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        PointLightAPI.onBlockChange((Level) event.getLevel(), event.getPos());
+        ModStructurePlacements.register(modEventBus);
     }
 }

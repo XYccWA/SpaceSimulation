@@ -1,0 +1,16 @@
+{
+  "structures": [
+    {
+      "structure": "space_simulation:spawn",
+      "weight": 10
+    }
+  ],
+  "placement": {
+    "salt": 516484265,
+    "spacing": 100,
+    "separation": 50,
+    "type": "space_simulation:ring_placement",
+    "min_radius": 5000000,
+    "max_radius": 10000000
+  }
+}

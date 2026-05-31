@@ -19,10 +19,10 @@ public class PlayerSpawnPoint {
 
     public static final Logger LOGGER = LogManager.getLogger(SpaceSimulation.MOD_ID);
 
-    private static final int INNER_RADIUS = 1000000;  // 圆环内半径
-    private static final int OUTER_RADIUS = 2000000;  // 圆环外半径
-    private static final int MAX_Y = 500;              // 最大高度
-    private static final int MIN_Y = -500;             // 最小高度
+    private static final int INNER_RADIUS = 5000000;  // 圆环内半径
+    private static final int OUTER_RADIUS = 10000000;  // 圆环外半径
+    private static final int MAX_Y = 10;              // 最大高度
+    private static final int MIN_Y = -10;             // 最小高度
 
     private static final Random random = new Random();
 
@@ -74,9 +74,6 @@ public class PlayerSpawnPoint {
     @SubscribeEvent
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (!event.getEntity().level().isClientSide() && event.getEntity() instanceof ServerPlayer player) {
-            // 同步燃料数据到客户端
-//            CapabilityHandler.syncFuelData(player);
-
             // 检查是否使用统一出生点
             if (SpaceSimulationConfig.useUnifiedSpawn.get()) {
                 // 使用统一出生点模式
