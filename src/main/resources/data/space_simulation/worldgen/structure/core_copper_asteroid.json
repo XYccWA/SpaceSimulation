@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:jigsaw",
+  "biomes": "space_simulation:asteroid_belt",
+  "step": "surface_structures",
+  "terrain_adaptation": "none",
+  "spawn_overrides": {},
+  "start_pool": "space_simulation:core_copper_asteroid",
+  "size": 1,
+  "start_height": {
+    "type": "minecraft:trapezoid",
+    "min_inclusive": {"absolute": -500},
+    "max_inclusive": {"absolute": 500}
+  },
+  "max_distance_from_center": 116,
+  "use_expansion_hack": false
+}

@@ -5,8 +5,9 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public class SpaceSimulationConfig {
     public static final ModConfigSpec SPEC;
     public static final ModConfigSpec.BooleanValue useUnifiedSpawn;
-    public static final ModConfigSpec.BooleanValue enableLightShortCircuit;
-    public static final ModConfigSpec.IntValue SHORT_CIRCUIT_LIGHT_LEVEL;
+    public static final ModConfigSpec.DoubleValue sustainedGThreshold;
+    public static final ModConfigSpec.DoubleValue highGravityAccelerationThreshold;
+    public static final ModConfigSpec.IntValue sutainedGDuration;
 
 
     static {
@@ -19,15 +20,19 @@ public class SpaceSimulationConfig {
 
         builder.pop();
 
-        builder.push("Light Settings");
+        builder.push("Damage Settings");
 
-            enableLightShortCircuit = builder.comment("Whether to disable lighting updates")
-                    .define("enableLightShortCircuit", true);
+            sustainedGThreshold = builder.comment("The threshold for sustained G force damage")
+                    .defineInRange("sustainedGThreshold", 49.05, 0.0, 300.0);
 
-            SHORT_CIRCUIT_LIGHT_LEVEL = builder.comment("What is the overwrite light value?")
-                    .defineInRange("SHORT_CIRCUIT_LIGHT_LEVEL", 15,0,15);
+            sutainedGDuration = builder.comment("The damage per tick for sustained G force")
+                    .defineInRange("sustainedGForceDamage", 20, 0, 200);
+
+            highGravityAccelerationThreshold = builder.comment("The threshold for high gravity acceleration damage")
+                    .defineInRange("highGravityAccelerationThreshold", 98.1, 0.0, 1000.0);
 
         builder.pop();
+
         SPEC = builder.build();
     }
 }

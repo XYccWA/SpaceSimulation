@@ -155,7 +155,9 @@ dependencies {
     implementation "curse.maven:xaeros-minimap-263420:8046966"
     implementation "curse.maven:xaeros-world-map-317780:8042208"
 
-    implementation "maven.modrinth:distanthorizons:3.0.3-b-1.21.1"
+    implementation "maven.modrinth:forgified-fabric-api:0.116.7+2.2.4+1.21.1"
+    implementation "maven.modrinth:connector:2.0.0-beta.14+1.21.1"
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

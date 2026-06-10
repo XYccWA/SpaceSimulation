@@ -1,16 +1,20 @@
 {
   "structures": [
     {
-      "structure": "space_simulation:spawn",
+      "structure": "space_simulation:core_iron_asteroid",
+      "weight": 5
+    },
+    {
+      "structure": "space_simulation:core_chromite_asteroid",
       "weight": 10
     }
   ],
   "placement": {
     "salt": 516484265,
-    "spacing": 100,
-    "separation": 50,
+    "spacing": 40,
+    "separation": 15,
     "type": "space_simulation:ring_placement",
-    "min_radius": 5000000,
+    "min_radius": 5,
     "max_radius": 10000000
   }
 }

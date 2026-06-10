@@ -18,20 +18,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 @Mixin(LivingEntity.class)
 public class LivingEntityMixin {
     // 原有常量
     private static final float RADIAN_CONVERTER = (float) (Math.PI / 180.0);
     private static final float DAMPING_FACTOR = 1.0F;
-    private static final Map<Player, Integer> gearLevelMap = new HashMap<>();
-    private static final Map<Player, Long> lastGearChangeTime = new HashMap<>();
     private static final long GEAR_COOLDOWN_MS = 200;
     private static final int MIN_GEAR = 1;
     private static final int MAX_GEAR = 5;
     private static final float BASE_ACCELERATION = 5.0F;
     private static final float ACCELERATION_INCREMENT = 5.0F;
-    private static final Map<Player, MovementMode> movementModeMap = new HashMap<>();
+
+    private static final Map<Player, Integer> gearLevelMap = new WeakHashMap<>();
+    private static final Map<Player, Long> lastGearChangeTime = new WeakHashMap<>();
+    private static final Map<Player, MovementMode> movementModeMap = new WeakHashMap<>();
 
     // 燃料消耗相关常量
     private static final float BASE_FUEL_CONSUMPTION = 0.01f; // 1档每秒消耗0.01

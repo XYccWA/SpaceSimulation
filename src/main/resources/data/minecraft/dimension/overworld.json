@@ -2,17 +2,17 @@
   "type": "minecraft:overworld",
   "generator": {
     "type": "minecraft:noise",
-    "min_y": -2032,
-    "max_y": 4064,
+    "min_y": -1024,
+    "max_y": 2048,
     "settings": "minecraft:overworld",
     "biome_source": {
       "type": "minecraft:fixed",
       "biome": "space_simulation:asteroid_belt"
     },
-    "min_y": -2032,
-    "max_y": 4064,
+    "min_y": -1024,
+    "max_y": 2048,
     "settings": {
-      "sea_level": -2032,
+      "sea_level": -1024,
       "aquifers_enabled": false,
       "ore_veins_enabled": false,
       "disable_mob_generation": false,
