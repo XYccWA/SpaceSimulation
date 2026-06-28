@@ -9,7 +9,7 @@ import org.xyccwa.space_simulation.SpaceSimulation;
 public class SpaceSimulationItem {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(SpaceSimulation.MOD_ID);
 
-    // ========== 浮土 ==========
+// ========== 浮土 ==========
     public static final DeferredItem<Item> DUST =
             ITEMS.register("dust", () -> new Item(new Item.Properties().stacksTo(1000)));
 

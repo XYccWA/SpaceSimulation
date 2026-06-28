@@ -1,0 +1,9 @@
+{
+  "values": [
+    "space_simulation:basic_radar",
+    "space_simulation:basic_cpu",
+    "space_simulation:basic_thruster",
+    "space_simulation:basic_frame",
+    "space_simulation:basic_battery"
+  ]
+}

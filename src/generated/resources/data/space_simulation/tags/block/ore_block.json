@@ -1,0 +1,23 @@
+{
+  "values": [
+    "space_simulation:kamacite_ore",
+    "space_simulation:taenite_ore",
+    "space_simulation:chromite_ore",
+    "space_simulation:ilmenite_ore",
+    "space_simulation:forsterite_ore",
+    "space_simulation:wolframite_ore",
+    "space_simulation:columbite_ore",
+    "space_simulation:molybdenite_ore",
+    "space_simulation:tantalite_ore",
+    "space_simulation:rheniite_ore",
+    "space_simulation:olivine_ore",
+    "space_simulation:pyroxene_ore",
+    "space_simulation:plagioclase_ore",
+    "space_simulation:quartz_ore",
+    "space_simulation:carbonaceous_ore",
+    "space_simulation:phyllosilicate_ore",
+    "space_simulation:carbonate_ore",
+    "space_simulation:troilite_ore",
+    "space_simulation:magnetite_ore"
+  ]
+}

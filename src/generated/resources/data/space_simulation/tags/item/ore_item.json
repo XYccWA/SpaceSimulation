@@ -1,0 +1,23 @@
+{
+  "values": [
+    "space_simulation:kamacite_sand",
+    "space_simulation:taenite_sand",
+    "space_simulation:chromite_sand",
+    "space_simulation:ilmenite_sand",
+    "space_simulation:forsterite_sand",
+    "space_simulation:wolframite_sand",
+    "space_simulation:columbite_sand",
+    "space_simulation:molybdenite_sand",
+    "space_simulation:tantalite_sand",
+    "space_simulation:rheniite_sand",
+    "space_simulation:olivine_sand",
+    "space_simulation:pyroxene_sand",
+    "space_simulation:plagioclase_sand",
+    "space_simulation:quartz_sand",
+    "space_simulation:carbonaceous_sand",
+    "space_simulation:phyllosilicate_sand",
+    "space_simulation:carbonate_sand",
+    "space_simulation:troilite_sand",
+    "space_simulation:magnetite_sand"
+  ]
+}

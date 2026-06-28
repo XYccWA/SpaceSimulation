@@ -1,4 +1,4 @@
-package org.xyccwa.space_simulation.sable;
+package org.xyccwa.space_simulation.command;
 
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;

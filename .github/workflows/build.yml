@@ -1,30 +1,101 @@
-name: Build
+name: 构建并自动发布 Release
 
-on: [push, pull_request]
+# 触发条件：推送到 main 或 master 分支
+on:
+  push:
+    branches: [ "main", "master" ]
+  # 也支持手动触发，方便测试
+  workflow_dispatch:
+
+# 权限设置：让 Action 有权限创建 Release 和上传文件
+permissions:
+  contents: write
+  pull-requests: read
+
+env:
+  MINECRAFT_VERSION: 1.21.1
+  JAVA_VERSION: 21
 
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      # 1. 签出代码
+      - name: 签出仓库代码
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
 
-      - name: Setup JDK 21
+      # 2. 设置 Java 21
+      - name: 设置 Java 环境
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      # This is needed to be able to run ./gradlew below
-      # You can run `git update-index --chmod +x gradlew` then remove this step.
-      - name: Make Gradle wrapper executable
+      # 3. 赋予 Gradle 可执行权限
+      - name: 使 Gradlew 可执行
         run: chmod +x ./gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew build
+      # 4. 缓存 Gradle 依赖（加速构建）
+      - name: 缓存 Gradle 依赖
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 5. 执行构建
+      - name: 构建模组
+        run: ./gradlew clean build
+
+      # 6. 提取 mod_id 和 mod_version（从 gradle.properties 读取）
+      - name: 提取模组信息
+        id: get_mod_info
+        run: |
+          # 读取 mod_id
+          MOD_ID=$(grep "^mod_id" gradle.properties | cut -d'=' -f2 | tr -d ' ')
+          # 如果没找到，使用默认值
+          if [ -z "$MOD_ID" ]; then
+            MOD_ID="my-mod"
+          fi
+          
+          # 读取 mod_version
+          MOD_VERSION=$(grep "^mod_version" gradle.properties | cut -d'=' -f2 | tr -d ' ')
+          if [ -z "$MOD_VERSION" ]; then
+            MOD_VERSION="1.0.0"
+          fi
+          
+          # 组合成最终的 Release 名称
+          RELEASE_NAME="${MOD_ID}-${MOD_VERSION}"
+          
+          echo "mod_id=$MOD_ID" >> $GITHUB_OUTPUT
+          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+          
+          echo "模组 ID: $MOD_ID"
+          echo "模组版本: $MOD_VERSION"
+          echo "Release 名称: $RELEASE_NAME"
+
+      # 7. 显示构建产物列表（方便调试）
+      - name: 列出构建产物
+        run: ls -l build/libs/
+
+      # 8. 创建 GitHub Release 并上传模组文件
+      - name: 创建 Release 并上传构建产物
+        uses: softprops/action-gh-release@v2
+        with:
+          # 使用 modid-版本号 作为标签名
+          tag_name: ${{ steps.get_mod_info.outputs.release_name }}
+          # Release 名称
+          name: ${{ steps.get_mod_info.outputs.release_name }}
+          # 自动生成发布说明（从上次 Release 到现在的提交记录）
+          generate_release_notes: true
+          # 要上传的文件（支持通配符）
+          files: |
+            build/libs/*.jar
+          # 如果标签已存在，覆盖已有的 Release
+          overwrite: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

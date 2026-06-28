@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "space_simulation:item/nickel_rhenium_alloy_ingot"
+  }
+}
