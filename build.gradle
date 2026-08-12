@@ -15,10 +15,14 @@ group = mod_group_id
 sourceSets.main.resources {
 
     srcDir('src/generated/resources')
-    from(rootProject.file('TEMPLATE_LICENSE.txt')) // 把根目录 GPL-3.0 许可证全文打进 jar
 
     exclude("**/*.bbmodel") // BlockBench project files
     exclude("src/generated/**/.cache") // datagen cache files
+}
+
+// 把根目录 GPL-3.0 许可证全文(TEMPLATE_LICENSE.txt)一并打进 jar
+tasks.named('processResources') {
+    from rootProject.file('TEMPLATE_LICENSE.txt')
 }
 
 repositories.clear()
