@@ -1,70 +1,29 @@
 package org.xyccwa.space_simulation.mixin.entity;
 
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.xyccwa.space_simulation.api.EntityRotation;
 
-import java.util.Map;
-import java.util.WeakHashMap;
-
+/**
+ * 禁用原版坠落伤害：1.21.1 的伤害链路是
+ * {@code Entity.move -> checkFallDamage -> Block.fallOn(默认实现) -> entity.causeFallDamage -> hurt}。
+ * {@code causeFallDamage} 是所有坠落伤害（普通地面、蜂蜜/史莱姆/干草减伤、滴水石、铁砧等）的唯一汇聚点，
+ * 在此 HEAD 取消即可整体关闭，且不影响 fallDistance 记账、落地音效粒子与方块交互。
+ *
+ * 与 {@code EntityMixin.spaceSim$noSuffocation} 同理：只对带四元数朝向的飞行玩家（hasOrientation()）
+ * 生效，原版生物仍正常受坠落伤害。
+ */
 @Mixin(LivingEntity.class)
-public class LivingEntityMixin {
-    // 原有常量
-    private static final float RADIAN_CONVERTER = (float) (Math.PI / 180.0);
-    private static final float DAMPING_FACTOR = 1.0F;
-    private static final long GEAR_COOLDOWN_MS = 200;
-    private static final int MIN_GEAR = 1;
-    private static final int MAX_GEAR = 5;
-    private static final float BASE_ACCELERATION = 5.0F;
-    private static final float ACCELERATION_INCREMENT = 5.0F;
+public abstract class LivingEntityMixin {
 
-    private static final Map<Player, Integer> gearLevelMap = new WeakHashMap<>();
-    private static final Map<Player, Long> lastGearChangeTime = new WeakHashMap<>();
-    private static final Map<Player, MovementMode> movementModeMap = new WeakHashMap<>();
-
-    // 燃料消耗相关常量
-    private static final float BASE_FUEL_CONSUMPTION = 0.01f; // 1档每秒消耗0.01
-    private static final float FUEL_CONSUMPTION_INCREMENT = 0.01f; // 每档增加0.01
-
-    @Inject(method = "hurt", at = @At("HEAD"), cancellable = true)
-    private void onHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-        if (source.typeHolder().is(DamageTypes.FELL_OUT_OF_WORLD) || source.typeHolder().is(DamageTypes.FALL)) {
+    @Inject(method = "causeFallDamage", at = @At("HEAD"), cancellable = true)
+    private void spaceSim$noFallDamage(float distance, float damageMultiplier, DamageSource source, CallbackInfoReturnable<Boolean> cir) {
+        if (((EntityRotation) (Object) this).hasOrientation()) {
             cir.setReturnValue(false);
         }
     }
-
-    @Inject(method = "isFallFlying", at = @At("HEAD"), cancellable = true)
-    private void alwaysFallFlying(CallbackInfoReturnable<Boolean> cir) {
-        LivingEntity self = (LivingEntity) (Object) this;
-        if (self instanceof Player) {
-            cir.setReturnValue(true);
-            cir.cancel();
-        }
-    }
-
-    @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
-    private void onJumpFromGround(CallbackInfo ci) {
-        Entity entity = (Entity) (Object) this;
-        if (entity instanceof Player) {
-            ci.cancel(); // 取消玩家的跳跃
-        }
-    }
-
-    @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
-    private void onTravel(Vec3 travelVector, CallbackInfo ci) {
-        Entity entity = (Entity) (Object) this;
-        if (entity instanceof Player) {
-            Player player = (Player) entity;
-//            ci.cancel();
-        }
-    }
 }
-

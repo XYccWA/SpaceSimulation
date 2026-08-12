@@ -64,5 +64,7 @@
   "item.space_simulation.tungsten_ingot": "Tungsten Ingot",
   "item.space_simulation.tungsten_rhenium_alloy_ingot": "Tungsten-Rhenium Alloy Ingot",
   "item.space_simulation.wolframite_sand": "Wolframite Sand",
-  "itemGroup.space_simulation.creative_tab": "Space Simulation"
+  "itemGroup.space_simulation.creative_tab": "Space Simulation",
+  "key.space_simulation.roll_left": "Roll Left",
+  "key.space_simulation.roll_right": "Roll Right"
 }

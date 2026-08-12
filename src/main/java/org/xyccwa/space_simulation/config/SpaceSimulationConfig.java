@@ -23,13 +23,13 @@ public class SpaceSimulationConfig {
         builder.push("Damage Settings");
 
             sustainedGThreshold = builder.comment("The threshold for sustained G force damage")
-                    .defineInRange("sustainedGThreshold", 49.05, 0.0, 300.0);
+                    .defineInRange("sustainedGThreshold", 98.1, 0.0, 300.0);
 
-            sutainedGDuration = builder.comment("The damage per tick for sustained G force")
+            sutainedGDuration = builder.comment("How many ticks G force must stay above sustainedGThreshold before damage starts (20 ticks = 1 second)")
                     .defineInRange("sustainedGForceDamage", 20, 0, 200);
 
             highGravityAccelerationThreshold = builder.comment("The threshold for high gravity acceleration damage")
-                    .defineInRange("highGravityAccelerationThreshold", 98.1, 0.0, 1000.0);
+                    .defineInRange("highGravityAccelerationThreshold", 294.3, 0.0, 1000.0);
 
         builder.pop();
 

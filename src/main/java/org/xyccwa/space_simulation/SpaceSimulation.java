@@ -16,6 +16,7 @@ import org.xyccwa.space_simulation.damage.PlayerAccelerationDamage;
 import org.xyccwa.space_simulation.modBlock.SpaceSimulationBlock;
 import org.xyccwa.space_simulation.modItem.SpaceSimulationCreativeTab;
 import org.xyccwa.space_simulation.modItem.SpaceSimulationItem;
+import org.xyccwa.space_simulation.network.ModPayloads;
 import org.xyccwa.space_simulation.worldgen.ModStructurePlacements;
 
 @Mod(SpaceSimulation.MOD_ID)
@@ -37,6 +38,8 @@ public class SpaceSimulation {
         PlayerAccelerationDamage damageHandler = new PlayerAccelerationDamage();
         //注册数据
         SpaceSimulationAttachments.register(modEventBus);
+        //注册网络包
+        modEventBus.addListener(ModPayloads::register);
 
 
         NeoForge.EVENT_BUS.register(damageHandler);

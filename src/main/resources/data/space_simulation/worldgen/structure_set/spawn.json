@@ -3,10 +3,6 @@
     {
       "structure": "space_simulation:core_iron_asteroid",
       "weight": 5
-    },
-    {
-      "structure": "space_simulation:core_chromite_asteroid",
-      "weight": 10
     }
   ],
   "placement": {

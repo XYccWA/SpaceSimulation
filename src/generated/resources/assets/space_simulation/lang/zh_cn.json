@@ -64,5 +64,7 @@
   "item.space_simulation.tungsten_ingot": "钨锭",
   "item.space_simulation.tungsten_rhenium_alloy_ingot": "钨铼合金锭",
   "item.space_simulation.wolframite_sand": "钨锰矿砂",
-  "itemGroup.space_simulation.creative_tab": "太空模拟"
+  "itemGroup.space_simulation.creative_tab": "太空模拟",
+  "key.space_simulation.roll_left": "向左滚转",
+  "key.space_simulation.roll_right": "向右滚转"
 }

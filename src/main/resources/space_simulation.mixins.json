@@ -4,7 +4,9 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "entity.EntityMixin",
+    "entity.PlayerMixin",
     "entity.LivingEntityMixin",
+    "entity.LivingEntityAccessor",
     "server.fluid.FluidMixin"
   ],
   "injectors": {
@@ -14,7 +16,8 @@
     "requireAnnotations": true
   },
   "client": [
+    "client.CameraMixin",
     "client.DebugScreenOverlayMixin",
-    "entity.PlayerRendererMixin"
+    "client.LivingEntityRendererMixin"
   ]
 }
