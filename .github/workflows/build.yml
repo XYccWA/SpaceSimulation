@@ -1,19 +1,24 @@
 name: 构建并自动发布 Release
 
-# 触发条件：推送到 main 或 master 分支
+# 触发条件：推送 v* 开头的 tag 时自动构建并发布 Release。
+# 只有"打标签发布"时才产生 Release，版本号直接取自 tag，
+# 避免每次 push 都发版、版本号永远不更新、以及同一 tag 反复覆盖导致 422 冲突。
 on:
   push:
-    branches: [ "main", "master" ]
-  # 也支持手动触发，方便测试
+    tags: [ "v*" ]
+  # 手动触发仅用于测试构建（不会发布 Release）
   workflow_dispatch:
+
+# 防止并发构建互相干扰（例如同一分支上快速连发两个手动触发）
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 # 权限设置：让 Action 有权限创建 Release 和上传文件
 permissions:
   contents: write
-  pull-requests: read
 
 env:
-  MINECRAFT_VERSION: 1.21.1
   JAVA_VERSION: 21
 
 jobs:
@@ -21,81 +26,90 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # 1. 签出代码
-      - name: 签出仓库代码
+      - name: Checkout
         uses: actions/checkout@v4
 
       # 2. 设置 Java 21
-      - name: 设置 Java 环境
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
 
       # 3. 赋予 Gradle 可执行权限
-      - name: 使 Gradlew 可执行
+      - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # 4. 缓存 Gradle 依赖（加速构建）
-      - name: 缓存 Gradle 依赖
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      # 4. 官方 Gradle 配置（内置构建缓存与 wrapper 缓存，替代手动 actions/cache）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      # 5. 执行构建
-      - name: 构建模组
-        run: ./gradlew clean build
-
-      # 6. 提取 mod_id 和 mod_version（从 gradle.properties 读取）
-      - name: 提取模组信息
+      # 5. 提取版本信息：tag 触发时取 tag 名（去掉 v 前缀），手动触发时回退 gradle.properties
+      - name: Extract version info
         id: get_mod_info
         run: |
-          # 读取 mod_id
           MOD_ID=$(grep "^mod_id" gradle.properties | cut -d'=' -f2 | tr -d ' ')
-          # 如果没找到，使用默认值
-          if [ -z "$MOD_ID" ]; then
-            MOD_ID="my-mod"
+          if [ -z "$MOD_ID" ]; then MOD_ID="robot_player"; fi
+
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # tag 触发：版本号来自 tag，如 v0.2.0-alpha -> 0.2.0-alpha
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            # 手动触发：回退到 gradle.properties 中的 mod_version
+            VERSION=$(grep "^mod_version" gradle.properties | cut -d'=' -f2 | tr -d ' ')
           fi
-          
-          # 读取 mod_version
-          MOD_VERSION=$(grep "^mod_version" gradle.properties | cut -d'=' -f2 | tr -d ' ')
-          if [ -z "$MOD_VERSION" ]; then
-            MOD_VERSION="1.0.0"
-          fi
-          
-          # 组合成最终的 Release 名称
-          RELEASE_NAME="${MOD_ID}-${MOD_VERSION}"
-          
+          if [ -z "$VERSION" ]; then VERSION="0.0.1"; fi
+
+          RELEASE_NAME="${MOD_ID}-${VERSION}"
+
           echo "mod_id=$MOD_ID" >> $GITHUB_OUTPUT
-          echo "mod_version=$MOD_VERSION" >> $GITHUB_OUTPUT
+          echo "mod_version=$VERSION" >> $GITHUB_OUTPUT
           echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
-          
-          echo "模组 ID: $MOD_ID"
-          echo "模组版本: $MOD_VERSION"
-          echo "Release 名称: $RELEASE_NAME"
+
+          echo "Mod ID: $MOD_ID"
+          echo "Mod version: $VERSION"
+          echo "Release name: $RELEASE_NAME"
+
+      # 6. 执行构建：用 tag 版本覆盖 gradle.properties 的 mod_version，
+      #    使 jar 文件名与模组元数据都使用发布版本号。
+      #    --no-configuration-cache：NeoForge moddev 2.0.141 与配置缓存在全新 CI 环境不兼容
+      #    --no-daemon：避免 CI 里残留 daemon 进程
+      - name: Build mod
+        run: ./gradlew --no-daemon --no-configuration-cache clean build -Pmod_version=${{ steps.get_mod_info.outputs.mod_version }}
 
       # 7. 显示构建产物列表（方便调试）
-      - name: 列出构建产物
+      - name: List build artifacts
         run: ls -l build/libs/
 
-      # 8. 创建 GitHub Release 并上传模组文件
-      - name: 创建 Release 并上传构建产物
+      # 8. 从 tag 注释提取 Release 正文（正文里写更新/修复内容）
+      #    推荐做法：打 tag 时用 -m 写入发布说明，Release 正文就会带上这些内容。
+      #    例如：git tag -a v0.2.0-alpha -m "v0.2.0-alpha" -m "## 更新内容 ..."
+      - name: Prepare release notes
+        id: prepare_notes
+        run: |
+          git tag -l "${{ github.ref_name }}" --format='%(contents:body)' > RELEASE_NOTES.md
+          if [ -s RELEASE_NOTES.md ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "已从 tag 注释读取到发布说明"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "该 tag 未写发布说明，将回退为自动生成"
+          fi
+
+      # 9. 创建 GitHub Release 并上传模组文件（仅 tag 触发时执行）
+      - name: Create Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          # 使用 modid-版本号 作为标签名
-          tag_name: ${{ steps.get_mod_info.outputs.release_name }}
-          # Release 名称
+          # 直接使用触发本次构建的 tag（该 tag 已由 git push 创建，无需 overwrite）
+          tag_name: ${{ github.ref_name }}
+          # Release 显示名称：robot_player-0.2.0-alpha
           name: ${{ steps.get_mod_info.outputs.release_name }}
-          # 自动生成发布说明（从上次 Release 到现在的提交记录）
-          generate_release_notes: true
-          # 要上传的文件（支持通配符）
+          # 优先用 tag 注释作为正文；没有注释时回退为自动生成
+          body_path: ${{ steps.prepare_notes.outputs.found == 'true' && 'RELEASE_NOTES.md' || '' }}
+          generate_release_notes: ${{ steps.prepare_notes.outputs.found == 'false' }}
+          # 要上传的文件
           files: |
             build/libs/*.jar
-          # 如果标签已存在，覆盖已有的 Release
-          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

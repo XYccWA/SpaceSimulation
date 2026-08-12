@@ -1,25 +1,60 @@
+# SpaceSimulation 太空模拟
 
-Installation information
-=======
+一个基于 **NeoForge 1.21.1** 的四元数六自由度(6DOF)飞行物理模组。在小行星带中自由翻滚飞行、以真实金属材料体系冶炼合金,并承受加速度带来的 G 力伤害。
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+## 特性
 
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
+### 六自由度飞行物理
+- **四元数姿态控制**:俯仰/偏航/滚转完全自由,无原版重力与机动限制
+- **滚转操作**:`Q` 左滚转、`E` 右滚转(进入游戏后自动重绑定原版按键:丢物品 `Q`→`DEL`、打开背包 `E`→`B`,尊重玩家自定义)
+- **视角指数平滑**:低帧率下也顺滑,物理方向与准星零滞后
+- **速度上限 200 m/s**(10 方块/刻)
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+### 碰撞与受击盒跟随旋转
+- 玩家碰撞箱随身体旋转而旋转(横飞时 1.8 方块长的盒贴合身体)
+- 通过 [Hitbox API](https://www.curseforge.com/minecraft/mc-mods/hitbox-api) 挂载**真旋转受击盒(OBB)**,`F3+B` 可查看
 
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
+### 加速度伤害系统
+- **撞击冲击伤害**:单刻速度骤降(撞击/急停)→ 按减速量造成伤害,上限 20
+- **持续高 G 过载伤害**:平滑加速度连续超阈值触发(30G 高G、10G 持续窗口)
+- 客户端本地权威速度差分 + 网络上报,单机/多人统一,无相位噪声假尖峰
+- 模组物理模式下禁用原版坠落伤害
 
-Additional Resources: 
-==========
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+### 太空世界生成
+- **小行星带**世界结构
+- 多种小行星矿石 → 矿砂 → 金属锭 → 航天合金锭的冶炼材料链
+
+#### 矿砂(20 种)
+- **金属矿砂**:辉铜矿、铁纹石、镍纹石、铬铁矿、钛铁矿、镁橄榄石、钨锰铁矿、铌铁矿、辉钼矿、钽铁矿、辉铼矿
+- **硅质矿砂**:橄榄石、辉石、斜长石、石英
+- **碳质矿砂**:碳质、层状硅酸盐、碳酸盐、陨硫铁、磁铁矿
+
+#### 金属锭(13 种)
+铜、铁、镍、铬、钛、镁、钨、铌、钼、钽、铼、铂、铑
+
+#### 合金锭(6 种)
+铁镍合金、铬镍铁合金(Incoloy 890)、钨铼合金、镍铼合金、铂铑合金、GH4061 合金
+
+## 依赖
+
+| 依赖 | 说明 |
+|---|---|
+| NeoForge 21.1.234 | 模组框架 |
+| [Hitbox API](https://www.curseforge.com/minecraft/mc-mods/hitbox-api) 1.0.0 | 旋转受击盒 |
+
+## 构建
+
+需要 JDK 21。
+
+```bash
+gradlew build          # 产出 build/libs/space_simulation-<version>.jar
+gradlew runClient -PquickPlaySingleplayer=世界名   # 直接载入单机存档测试
+```
+
+## 许可
+
+本项目以 **GPL-3.0** 许可发布。
+
+## 已知问题
+
+- **矿砂物品暂无纹理**(物品栏显示黑紫块):`*_sand` 系列 20 个物品已注册并有翻译,但缺少贴图资源,待美术资源补齐。
