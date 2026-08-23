@@ -57,6 +57,14 @@ description='''
 [[mixins]]
 config="${mod_id}.mixins.json"
 
+# rapierfix：rapier f32 浮点原点重基修复（独立 mixin 配置，便于整体隔离）。
+# 隔离方式：① 配置 SpaceSimulationConfig.rapierRebaseEnabled=false 关闭全部平移逻辑；
+# ② 或删除本块 + src/main/resources/space_simulation.rapier.mixins.json +
+#    src/main/java/org/xyccwa/space_simulation/{mixin/rapierfix,rapierfix} 目录。
+# 目标类（sable_rapier 的 RapierPhysicsPipeline）不存在时（sable 未安装）配置自动跳过（required=false）。
+[[mixins]]
+config="${mod_id}.rapier.mixins.json"
+
 # The [[accessTransformers]] block allows you to declare where your AT file is.
 # If this block is omitted, a fallback attempt will be made to load an AT from META-INF/accesstransformer.cfg
 #[[accessTransformers]]
@@ -98,6 +106,15 @@ config="${mod_id}.mixins.json"
     type="required"
     versionRange="[1.0.0,)"
     ordering="NONE"
+    side="BOTH"
+
+# Sable 子层级库（dev 环境由 build.gradle 的 sable-neoforge 依赖提供；
+# 用户环境需另行安装 Sable，可选依赖避免无 sable 时整个模组拒绝加载）
+[[dependencies.${mod_id}]]
+    modId="sable"
+    type="optional"
+    versionRange="[2.0.5,)"
+    ordering="AFTER"
     side="BOTH"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares

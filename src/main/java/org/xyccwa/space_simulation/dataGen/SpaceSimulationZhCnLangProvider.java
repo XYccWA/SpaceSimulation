@@ -98,6 +98,8 @@ public class SpaceSimulationZhCnLangProvider extends LanguageProvider {
         addDeathMessage("high_g_force.player", "%s 在试图逃离 %s 时被超高G力碾压");
         addDeathMessage("sustained_g_force", "%s 死于持续高G力");
         addDeathMessage("sustained_g_force.player", "%s 在与 %s 战斗时死于持续高G力");
+        addDeathMessage("solar_burn", "%s 闯入了太阳内部被烧死");
+        addDeathMessage("solar_burn.player", "%s 在试图逃离 %s 时闯入了太阳内部被烧死");
 
     }
 

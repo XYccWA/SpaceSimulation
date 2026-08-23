@@ -77,10 +77,10 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
 
             // 测试钩子：`./gradlew.bat runClient -PquickPlaySingleplayer=世界名` 直接载入单机存档。
-            if (project.hasProperty('quickPlaySingleplayer')) {
-                programArgument '--quickPlaySingleplayer'
-                programArgument project.quickPlaySingleplayer
-            }
+//            if (project.hasProperty('quickPlaySingleplayer')) {
+//                programArgument '--quickPlaySingleplayer'
+//                programArgument project.quickPlaySingleplayer
+//            }
         }
 
         server {
@@ -142,26 +142,20 @@ configurations {
 }
 
 dependencies {
-    implementation "curse.maven:fullbright-optimized-1421556:7775280"
     implementation "curse.maven:hitbox-api-1152734:5958930"
+
     implementation("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
     implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}")
     compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}")
     runtimeOnly("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
     implementation("com.tterrag.registrate:Registrate:${registrate_version}")
-    implementation("foundry.veil:veil-neoforge-${project.minecraft_version}:${project.veil_version}") {
-        exclude group: "me.fallenbreath"
-    }
+
     localImplementation("dev.ryanhcode.sable:sable-neoforge-${minecraft_version}:${sable_version}")
     localImplementation("dev.simulated_team.simulated:simulated-neoforge-${minecraft_version}:${create_aeronautics_version}")  { transitive false }
     localImplementation("dev.eriksonn.aeronautics:aeronautics-neoforge-${minecraft_version}:${create_aeronautics_version}")  { transitive false }
     localImplementation("dev.ryanhcode.offroad:offroad-neoforge-${minecraft_version}:${create_aeronautics_version}")  { transitive false }
 
-    runtimeOnly "curse.maven:ferritecore-429235:7524151"
-    runtimeOnly "maven.modrinth:c2me-neoforge:0.3.0+alpha.0.93+1.21.1"
-
-    implementation "maven.modrinth:sodium:mc1.21.1-0.6.13-neoforge"
-    implementation "curse.maven:create-better-fps-1217518:7951368"
+    runtimeOnly "maven.modrinth:c2me-neoforge:0.4.0-alpha.0.120+1.21.1"
 
     implementation "curse.maven:xaeros-minimap-263420:8046966"
     implementation "curse.maven:xaeros-world-map-317780:8042208"
@@ -180,6 +174,9 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_license            : mod_license,
             mod_version            : mod_version,
     ]
+    // 模板含中文注释/描述：expand 读写必须显式 UTF-8，否则 Windows 平台默认
+    // GBK 会把 UTF-8 中文破坏成非法字节，生成的 neoforge.mods.toml 无法被 FML 解析。
+    filteringCharset = 'UTF-8'
     inputs.properties replaceProperties
     expand replaceProperties
     from "src/main/templates"

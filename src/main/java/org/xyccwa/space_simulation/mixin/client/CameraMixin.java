@@ -5,7 +5,10 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -41,6 +44,13 @@ public abstract class CameraMixin {
     private boolean spaceSim$frontView = false;
     @Unique
     private float spaceSim$partialTick = 0.0F;
+    @Unique
+    private BlockGetter spaceSim$level;
+    @Unique
+    private boolean spaceSim$detached = false;
+    /** 相机碰撞退让量（格）。near plane=0.05，取 0.1 防贴面 z-fighting。 */
+    @Unique
+    private static final double CAMERA_CLIP_MARGIN = 0.1;
 
     @Shadow
     @Final
@@ -75,9 +85,26 @@ public abstract class CameraMixin {
     private void spaceSim$setupHead(BlockGetter level, Entity entity, boolean detached, boolean thirdPersonReverse, float partialTick, CallbackInfo ci) {
         this.spaceSim$frontView = detached && thirdPersonReverse;
         this.spaceSim$partialTick = partialTick;
+        this.spaceSim$level = level;
+        this.spaceSim$detached = detached;
     }
 
-    /** 把眼睛位置从沿世界 Y 改为沿机体 up 轴偏移。 */
+    /**
+     * 把眼睛位置从沿世界 Y 改为沿机体 up 轴偏移；第一人称下做一次相机碰撞（防穿模）。
+     *
+     * 滚转/翻转后眼睛沿 bodyUp 偏移（最多 1.62 格），可超出自身碰撞盒深入方块内部，
+     * 而原版第一人称相机无碰撞。这里从旋转机体中心（在盒内=方块外）向期望眼睛位置
+     * 沿 bodyUp 做一条 ClipContext 射线，命中则拉回墙面并退让 0.1 格（仿原版 getMaxZoom）。
+     * 仅第一人称（非 detached）、非旁观者时生效；第三人称的 move(-getMaxZoom()) 走
+     * setPosition(Vec3) 重载不被本 @Redirect 截获，且以其自身射线继续做后退碰撞。
+     *
+     * 朝向选择：本地玩家（第一人称）用 getOrientation()（严格当前朝向）——与拾取射线起点
+     * （EntityMixin.spaceSim$onGetEyePosition 同为 current）严格重合，且与 setupTail 的相机
+     * 朝向（current）同源，滚转/倒飞下画面中心 ≡ 射线。不能用 getSmoothedOrientation()：
+     * 平滑朝向在滚转/倒飞时落后实际姿态，眼位偏移沿\"半转的 up 轴\"，相机位置与射线起点
+     * 分离，准星所指与实际命中不一致（实测）。远程玩家用插值（网络 20Hz 补帧，视觉平滑，
+     * 不参与本地瞄准）。
+     */
     @Redirect(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
     private void spaceSim$eyePosition(Camera instance, double x, double y, double z) {
         if (this.entity instanceof EntityRotation er && er.hasOrientation()) {
@@ -86,13 +113,34 @@ public abstract class CameraMixin {
             double ey = Mth.lerp((double) pt, this.entity.yo, this.entity.getY());
             double ez = Mth.lerp((double) pt, this.entity.zo, this.entity.getZ());
             float eh = Mth.lerp(pt, this.eyeHeightOld, this.eyeHeight);
-            // 本地玩家用平滑显示朝向（与平滑相机/模型一致）；远程玩家用插值（网络 20Hz）。
+            // 本地玩家=严格当前朝向（与射线起点/相机朝向同源）；远程玩家=插值（网络 20Hz 补帧）。
             Quaternionf eyeQ = (this.entity instanceof LocalPlayer)
-                    ? er.getSmoothedOrientation()
+                    ? er.getOrientation()
                     : er.getInterpolatedOrientation(pt);
             Vector3f bodyUp = new Vector3f(0.0F, 1.0F, 0.0F).rotate(eyeQ);
-            this.position = new Vec3(ex + bodyUp.x * eh, ey + bodyUp.y * eh, ez + bodyUp.z * eh);
-            this.blockPosition.set(this.position.x, this.position.y, this.position.z);
+            Vec3 desired = new Vec3(ex + bodyUp.x * eh, ey + bodyUp.y * eh, ez + bodyUp.z * eh);
+
+            // 相机碰撞：仅第一人称（非 detached）、非旁观者（旁观者可穿墙看内部）。
+            // 锚点 = 旋转机体中心 position + bodyUp*hh：与 desired 同轴（射线恰沿 bodyUp 直线，
+            // 无假命中），且在碰撞盒内=方块外，是已知安全起点。
+            if (!this.spaceSim$detached
+                    && !(this.entity instanceof Player p && p.isSpectator())
+                    && this.spaceSim$level != null) {
+                float hh = this.entity.getBbHeight() * 0.5F;
+                Vec3 anchor = new Vec3(ex + bodyUp.x * hh, ey + bodyUp.y * hh, ez + bodyUp.z * hh);
+                Vec3 dir = desired.subtract(anchor);
+                // eh>hh 保证方向朝外（常见姿态 eh>hh）；零向量时跳过，防 normalize 得 NaN 相机消失
+                if (eh > hh + 1.0E-4F && dir.lengthSqr() > 1.0E-8) {
+                    HitResult hit = this.spaceSim$level.clip(new ClipContext(
+                            anchor, desired, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, this.entity));
+                    if (hit.getType() != HitResult.Type.MISS) {
+                        desired = hit.getLocation().subtract(dir.normalize().scale(CAMERA_CLIP_MARGIN));
+                    }
+                }
+            }
+
+            this.position = desired;
+            this.blockPosition.set(desired.x, desired.y, desired.z);
         } else {
             this.position = new Vec3(x, y, z);
             this.blockPosition.set(x, y, z);
@@ -109,9 +157,13 @@ public abstract class CameraMixin {
         boolean front = this.spaceSim$frontView;
         this.spaceSim$frontView = false; // 复位，避免残留到下一帧
         if (this.entity instanceof EntityRotation er && er.hasOrientation()) {
-            // 本地玩家读平滑显示朝向（视角缓动）；远程玩家用网络插值，避免 20Hz 步进
+            // 准星对齐关键：画面中心（准星）的像素方向必须与拾取/瞄准射线方向（getViewVector，
+            // 已注入为 getOrientation() 当前实际朝向）严格一致，否则准星指向的方块 ≠ 实际瞄准方块。
+            // 本地玩家第一人称必须用 getOrientation()（零滞后实际朝向），不能用 getSmoothedOrientation()
+            // （平滑缓动在俯仰/滚转时严格滞后，导致准星背离瞄准点且永不收敛）。
+            // 远程玩家朝向来自 20Hz 网络同步，用插值补足到每帧（准星横竖方向同样由 getViewVector 控制）。
             Quaternionf q = (this.entity instanceof LocalPlayer)
-                    ? er.getSmoothedOrientation()
+                    ? er.getOrientation()
                     : er.getInterpolatedOrientation(this.spaceSim$partialTick);
             Quaternionf rot = new Quaternionf(q);
             if (!front) {

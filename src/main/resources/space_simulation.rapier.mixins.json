@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "package": "org.xyccwa.space_simulation.mixin.rapierfix",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "RapierPhysicsPipelineMixin",
+    "RapierConstraintHandleMixin",
+    "RapierFreeConstraintHandleMixin",
+    "RapierGenericConstraintHandleMixin",
+    "RapierFixedConstraintHandleMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

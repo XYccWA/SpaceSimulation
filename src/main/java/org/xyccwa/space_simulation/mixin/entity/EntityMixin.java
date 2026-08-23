@@ -207,6 +207,48 @@ public abstract class EntityMixin implements EntityRotation {
         }
     }
 
+    /**
+     * 拾取/瞄准射线起点严格跟随身体朝向：原版 getEyePosition 返回 (x, y+eh, z)
+     * （沿世界 Y 偏移眼高），旋转/滚转/倒飞时"直立眼位"与相机位置分离，射线从错误
+     * 起点打出，准星所指与命中对象错位。
+     *
+     * 偏移方向必须用 getOrientation()（当前实际朝向，零滞后）——不能用
+     * getSmoothedOrientation()/getInterpolatedOrientation()：平滑缓动朝向在滚转/倒飞时
+     * 严格落后实际姿态（tau=0.04s，快速滚转残差可达数十度），眼位会沿"半转半未转"的
+     * up 轴偏移，起点仍与身体真实眼位分离，实测滚转/倒飞下准星与实际命中不一致。
+     * 原版 getViewVector/getEyePosition 本就只插值位置、不插值朝向（眼睛始终严格贴在
+     * 当前姿态上），这里保持一致：位置 lerp、朝向 current。
+     */
+    // 注意：Entity 有 getEyePosition()（无参）与 getEyePosition(float) 两个重载，
+    // @Inject 的 method 必须写完整描述符精确绑定到 float 版，否则 Sponge 两重重载歧义
+    // （handler 签名只匹配 float 版）会导致本注入被静默跳过——表现就是"起点仍原版
+    // 世界 Y 眼位、俯仰/滚转时准星与实际命中错位、偏航天然正常"（实测）。
+    @Inject(method = "getEyePosition(F)Lnet/minecraft/world/phys/Vec3;", at = @At("HEAD"), cancellable = true)
+    private void spaceSim$onGetEyePosition(float partialTick, CallbackInfoReturnable<Vec3> cir) {
+        if (!this.hasOrientation()) {
+            return;
+        }
+        Entity self = (Entity) (Object) this;
+        // 睡觉姿态走原版低眼位（与 makeBoundingBox / 渲染侧 SLEEPING 跳过一致）
+        if (self.hasPose(Pose.SLEEPING)) {
+            return;
+        }
+        float eh = self.getEyeHeight();
+        if (eh <= 0.0F) {
+            return; // 防御（正常不会）
+        }
+        // 位置插值语义与原版一致（xo→x 按 partialTick lerp）；朝向不插值，严格用当前身体姿态
+        double ex = Mth.lerp((double) partialTick, self.xo, self.getX());
+        double ey = Mth.lerp((double) partialTick, self.yo, self.getY());
+        double ez = Mth.lerp((double) partialTick, self.zo, self.getZ());
+        Quaternionf q = this.getOrientation();
+        Vector3f bodyUp = new Vector3f(0.0F, 1.0F, 0.0F).rotate(q);
+        cir.setReturnValue(new Vec3(
+                ex + (double) bodyUp.x * eh,
+                ey + (double) bodyUp.y * eh,
+                ez + (double) bodyUp.z * eh));
+    }
+
     /** 让所有读取视角方向的逻辑跟随四元数朝向（含倒飞时俯仰超过 ±90° 的情况）。 */
     @Inject(method = "getViewVector", at = @At("HEAD"), cancellable = true)
     private void spaceSim$onGetViewVector(float partialTick, CallbackInfoReturnable<Vec3> cir) {

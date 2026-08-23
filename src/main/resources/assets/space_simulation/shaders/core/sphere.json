@@ -1,0 +1,15 @@
+{
+    "vertex": "space_simulation:sphere",
+    "fragment": "space_simulation:sphere",
+    "attributes": [
+        "Position"
+    ],
+    "uniforms": [
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "InvView", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "ScreenSize", "type": "float", "count": 2, "values": [ 854.0, 480.0 ] },
+        { "name": "SphereCenterView", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
+        { "name": "SphereRadius", "type": "float", "count": 1, "values": [ 150000.0 ] },
+        { "name": "Time", "type": "float", "count": 1, "values": [ 0.0 ] }
+    ]
+}
