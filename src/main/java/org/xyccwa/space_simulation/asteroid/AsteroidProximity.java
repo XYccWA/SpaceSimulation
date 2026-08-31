@@ -202,7 +202,7 @@ public final class AsteroidProximity {
                                          double px, double py, double pz, double r2) {
         double lo = Math.min(nu1, nu2), hi = Math.max(nu1, nu2);
         double flo = dist2(lo, a, e, b, px, py, pz) - r2;
-        for (int k = 0; k < 48; k++) {
+        for (int k = 0; k < 24; k++) { // 24 次二分：初始区间 ≤0.39 rad → 精度 ≈1e-7 rad，足够
             double mid = (lo + hi) / 2;
             double fm = dist2(mid, a, e, b, px, py, pz) - r2;
             if (flo * fm <= 0) hi = mid; else { lo = mid; flo = fm; }

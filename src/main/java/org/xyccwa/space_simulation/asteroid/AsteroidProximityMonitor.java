@@ -201,6 +201,21 @@ public final class AsteroidProximityMonitor {
         return cells.length;
     }
 
+    /** 索引是否正在分帧重建中。 */
+    public boolean building() {
+        return building;
+    }
+
+    /** 重建进度：已精测候选数。 */
+    public int buildFrame() {
+        return frameCursor;
+    }
+
+    /** 重建进度：本次候选总数。 */
+    public int buildTotal() {
+        return newCells.length;
+    }
+
     /** 上一步进入某档的颗 id（消费）。 */
     public long[] pollEntered(int band) {
         return drain(entered.get(band));

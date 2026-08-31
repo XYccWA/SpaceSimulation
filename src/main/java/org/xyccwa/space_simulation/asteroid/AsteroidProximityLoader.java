@@ -139,6 +139,21 @@ public final class AsteroidProximityLoader {
 
     // ---------- 实测统计 ----------
 
+    /** 预载索引是否正在分帧重建中。 */
+    public boolean indexBuilding() {
+        return monitor.building();
+    }
+
+    /** 重建进度：已精测候选帧数。 */
+    public int indexFrame() {
+        return monitor.buildFrame();
+    }
+
+    /** 重建进度：本次候选总数。 */
+    public int indexTotal() {
+        return monitor.buildTotal();
+    }
+
     /** 最近一次 update 耗时 ns（含定期检索启动那 tick）。 */
     public long lastUpdateNs() {
         return lastUpdateNs;

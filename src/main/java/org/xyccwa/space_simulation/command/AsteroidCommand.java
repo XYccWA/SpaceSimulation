@@ -10,6 +10,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.xyccwa.space_simulation.asteroid.AsteroidOrbit;
 import org.xyccwa.space_simulation.asteroid.AsteroidProximity;
 import org.xyccwa.space_simulation.asteroid.AsteroidProximityLoader;
+import org.xyccwa.space_simulation.asteroid.AsteroidProximityService;
 import org.xyccwa.space_simulation.asteroid.AsteroidUniverse;
 import org.xyccwa.space_simulation.asteroid.AsteroidUniverseSource;
 
@@ -29,18 +30,13 @@ public final class AsteroidCommand {
 
     private final AsteroidUniverse universe;
 
-    /** 加载逻辑实例（懒创建，实测用）。 */
-    private AsteroidProximityLoader loader;
-
     public AsteroidCommand() {
         this.universe = AsteroidUniverseSource.fromConfig();
     }
 
+    /** 加载器单例（与 AsteroidProximityService 每 tick 驱动的为同一实例，命令只读状态）。 */
     private AsteroidProximityLoader loader() {
-        if (loader == null) {
-            loader = new AsteroidProximityLoader(universe, 10000.0, 2000.0, 600);
-        }
-        return loader;
+        return AsteroidProximityService.loader();
     }
 
     public static void register(RegisterCommandsEvent event) {
@@ -189,8 +185,14 @@ public final class AsteroidCommand {
         send(source, "[小行星 loader] 加载逻辑（无实体化）：预加载索引（分帧检索）+ 强加载每 tick 检索");
         send(source, String.format(Locale.ROOT,
                 "  预加载范围 %.0f 块 / 强加载范围 %.0f 块（强加载 < 预加载）", L.preloadRadius, L.strongRadius));
-        send(source, String.format(Locale.ROOT,
-                "  预载索引: %d 个轨道环（真相交环），当前预载颗数约 %,d", L.preloadCellCount(), L.preloadSet().size()));
+        if (L.indexBuilding()) {
+            send(source, String.format(Locale.ROOT,
+                    "  预载索引建设中: %d/%d 候选已精测（分帧 FRAME=%d，每 tick 分摊，不阻塞主线程）",
+                    L.indexFrame(), L.indexTotal(), AsteroidProximityLoader.FRAME));
+        } else {
+            send(source, String.format(Locale.ROOT,
+                    "  预载索引: %d 个真相交轨道环，当前预载颗数约 %,d", L.preloadCellCount(), L.preloadSet().size()));
+        }
         send(source, String.format(Locale.ROOT,
                 "  强加载: 当前 %.0f 块内 %,d 颗", L.strongRadius, L.strongCount()));
         send(source, String.format(Locale.ROOT,

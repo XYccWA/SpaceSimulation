@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
 import net.neoforged.fml.common.Mod;
+import org.xyccwa.space_simulation.asteroid.AsteroidProximityService;
 import org.xyccwa.space_simulation.asteroid.AsteroidUniverseSource;
 import org.xyccwa.space_simulation.attachment.SpaceSimulationAttachments;
 import org.xyccwa.space_simulation.client.WorldSphereRenderer;
@@ -52,8 +53,10 @@ public class SpaceSimulation {
         NeoForge.EVENT_BUS.register(damageHandler);
         NeoForge.EVENT_BUS.register(sunKillHandler);
 
-        // 程序化小行星系统：/asteroid 命令（meta / info <index>）
+        // 程序化小行星系统：/asteroid 命令（meta / info <index> / near / loader）
         NeoForge.EVENT_BUS.addListener(AsteroidCommand::register);
+        // 小行星近邻加载服务：服务端每 tick 自动驱动（预载索引分帧 + 强载每 tick 检索）
+        NeoForge.EVENT_BUS.addListener(AsteroidProximityService::tick);
 
         // 客户端:注册世界球体着色器(mod 总线事件,服务器端不加载客户端类)
         if (FMLEnvironment.dist.isClient()) {
