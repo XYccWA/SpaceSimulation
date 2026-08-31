@@ -202,7 +202,7 @@ public final class AsteroidCommand {
                 "  进出事件 预载进 %d / 预载出 %d / 强载进 %d / 强载出 %d",
                 inPre.length, leftPre.length, inStr.length, leftStr.length));
         send(source, String.format(Locale.ROOT,
-                "  下次定期预载检索: %d tick 后（间隔 %d tick）", L.ticksUntilNextPreload(tick), L.preloadIntervalTicks));
+                "  预载区间平移刷新间隔: 每 %d tick（强载不受节流，每 tick 从索引检索）", L.preloadIntervalTicks));
         return 1;
     }
 

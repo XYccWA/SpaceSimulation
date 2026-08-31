@@ -23,6 +23,9 @@ public final class AsteroidProximityMonitor {
 
     private final AsteroidUniverse u;
 
+    /** 预载档（band0）区间平移刷新间隔（tick）。强载档不受节流，每 tick 检索。 */
+    private final int preloadIntervalTicks;
+
     private double[] radii = new double[0];
     private double cx, cy, cz;
     private double lx, ly, lz;
@@ -41,7 +44,7 @@ public final class AsteroidProximityMonitor {
     private double[][][] newBandWins = new double[0][][];
     private boolean firstAfterRebuild = false;
     /** 每帧精测的候选数。 */
-    public static final int FRAME = 4096;
+    public static final int FRAME = 1024;
 
     // 预载档逐环命中区间（动态层刷新）：[lo1, hi1, lo2, hi2, nSeg]
     private int[][] curRanges = new int[0][];
@@ -54,7 +57,13 @@ public final class AsteroidProximityMonitor {
     private final List<List<Long>> left = new ArrayList<>();
 
     public AsteroidProximityMonitor(AsteroidUniverse universe) {
+        this(universe, 20);
+    }
+
+    /** @param preloadIntervalTicks 预载档区间平移刷新的间隔（tick），强载档不受节流。 */
+    public AsteroidProximityMonitor(AsteroidUniverse universe, int preloadIntervalTicks) {
         this.u = universe;
+        this.preloadIntervalTicks = Math.max(1, preloadIntervalTicks);
     }
 
     // ---------- 对外接口 ----------
@@ -126,13 +135,16 @@ public final class AsteroidProximityMonitor {
         double[] r2s = new double[radii.length];
         for (int b = 0; b < radii.length; b++) r2s[b] = radii[b] * radii[b];
 
-        // 动态层：每环每档
+        // 动态层：每环每档。预载档（band0）区间按间隔平移刷新（节流）；强载档每 tick。
+        boolean preTick = tick % preloadIntervalTicks == 0;
         for (int ci = 0; ci < cells.length; ci++) {
             long cellKey = cells[ci];
             double n = cellNs[ci];
-            int[] win0 = AsteroidProximity.ringIdxWindow(u, cellBandWins[ci][0], u.k, n, tick);
-            int[] r0 = curRanges[ci];
-            r0[0] = win0[0]; r0[1] = win0[1]; r0[2] = win0[2]; r0[3] = win0[3]; r0[4] = win0[4];
+            if (preTick) {
+                int[] win0 = AsteroidProximity.ringIdxWindow(u, cellBandWins[ci][0], u.k, n, tick);
+                int[] r0 = curRanges[ci];
+                r0[0] = win0[0]; r0[1] = win0[1]; r0[2] = win0[2]; r0[3] = win0[3]; r0[4] = win0[4];
+            }
             // 强载档（band>=1）：用本档相位窗口 → 只对本档命中颗解位置
             for (int b = 1; b < radii.length; b++) {
                 double[] win = cellBandWins[ci][b];
@@ -159,8 +171,8 @@ public final class AsteroidProximityMonitor {
             return;
         }
 
-        // 事件
-        eventForBand0();
+        // 事件：预载档事件按刷新间隔（与 band0 区间刷新同步）；强载档每 tick
+        if (preTick) eventForBand0();
         for (int b = 1; b < radii.length; b++) eventForBand(b);
     }
 

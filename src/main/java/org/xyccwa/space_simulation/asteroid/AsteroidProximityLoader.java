@@ -6,15 +6,17 @@ import java.util.Set;
  * 加载逻辑（无实体化）—— 预加载索引 + 强加载每 tick 检索。
  *
  * 分级：
- *   预加载（preloadRadius，默认 10000）：按时间间隔检索该范围内的小行星，结果写作
+ *   预加载（preloadRadius，默认 50000，远大于玩家可跑出范围）：范围内的小行星写成
  *       "索引"（真相交环表 + 每环相位窗口 + 每环当前命中 ringIdx 区间）。
- *       检索绝不阻塞主线程：位移超阈值或定期到达时启动一轮，每一 tick 只精测
- *       FRAME 个候选（分帧），一轮分摊到多个 tick，其余 tick 索引保持可用
- *       （区间每 tick 平移跟踪相位移动）。
+ *       索引是静态几何（环-球相交只随玩家位置 P 变化，不随游戏刻度变化）：
+ *       仅玩家位移超阈值（preloadRadius×0.125）时整轮重建，重建分帧（每 tick 只精测
+ *       FRAME 个候选）绝不阻塞主线程；预载区间按 preloadIntervalTicks 间隔平移刷新
+ *       （跟踪轨道相位移动，"按时间间隔检索"）。重建期间旧索引保持可用，
+ *       因预载范围远大于玩家位移，玩家不会跑出旧索引覆盖区。
  *   强加载（strongRadius，默认 2000，必须 &lt; 预加载）：每 tick 直接从索引检索，
  *       只对强载档相位窗口命中的颗做精确位置 + 距离过滤（颗少，~0.2ms/tick）。
  *
- * 全程确定性；在服务端 tick 线程同步调用 update(...)。
+ * 全程确定性；在服务端 tick 线程同步调用 update(...)（由 AsteroidProximityService 驱动）。
  */
 public final class AsteroidProximityLoader {
 
@@ -24,7 +26,7 @@ public final class AsteroidProximityLoader {
     public final double preloadRadius;
     /** 强加载半径（块），必须小于 preloadRadius。 */
     public final double strongRadius;
-    /** 预加载定期检索的间隔（tick），到期自动启动一轮分帧检索。 */
+    /** 预载区间平移刷新的间隔（tick）——"按时间间隔检索"；强载档不受节流，每 tick。 */
     public final int preloadIntervalTicks;
 
     /** 每 tick 分帧精测的候选单元数（主线程单 tick 分摊上限）。 */
@@ -33,11 +35,8 @@ public final class AsteroidProximityLoader {
     /** 内部监测核心：band0=预载（区间索引）、band1=强载（精确集合）。 */
     private final AsteroidProximityMonitor monitor;
 
-    private long lastPreRefreshTick;
-
     // 实测统计
     private long lastUpdateNs;
-    private long lastRefreshNs;
 
     public AsteroidProximityLoader(AsteroidUniverse universe,
                                    double preloadRadius, double strongRadius,
@@ -50,32 +49,22 @@ public final class AsteroidProximityLoader {
         this.preloadRadius = preloadRadius;
         this.strongRadius = strongRadius;
         this.preloadIntervalTicks = Math.max(1, preloadIntervalTicks);
-        this.monitor = new AsteroidProximityMonitor(universe);
+        this.monitor = new AsteroidProximityMonitor(universe, preloadIntervalTicks);
     }
 
     /** 重置（首帧或换宇宙/换玩家）。 */
     public void reset(double px, double py, double pz, long tick) {
-        lastPreRefreshTick = tick;
         monitor.reset(px, py, pz, radii(), tick);
     }
 
     /**
-     * 每 tick 更新（服务端 tick 线程）。
-     * 1) 预加载定期到期 → 启动一轮分帧检索（索引重建）；位移阈值由 Monitor 内部处理；
-     * 2) 索引区间每 tick 平移（预载档）；
-     * 3) 强加载每 tick 从索引精确检索。
+     * 每 tick 更新（服务端 tick 线程）：
+     * 位移超阈值 → Monitor 启动分帧整轮重建（期间旧索引可用）；预载区间按间隔平移；
+     * 强载每 tick 精确检索。
      */
     public void update(double px, double py, double pz, long tick) {
         long t0 = System.nanoTime();
-        if (tick - lastPreRefreshTick >= preloadIntervalTicks) {
-            // 定期检索：强制新一轮分帧重建（monitor.reset 立即启动分帧）
-            long t1 = System.nanoTime();
-            monitor.reset(px, py, pz, radii(), tick);
-            lastPreRefreshTick = tick;
-            lastRefreshNs = System.nanoTime() - t1;
-        } else {
-            monitor.update(px, py, pz, radii(), tick);
-        }
+        monitor.update(px, py, pz, radii(), tick);
         lastUpdateNs = System.nanoTime() - t0;
     }
 
@@ -117,7 +106,7 @@ public final class AsteroidProximityLoader {
 
     // ---------- 进出事件（实时监测） ----------
 
-    /** 上一步进入预载范围（band0）的颗 id（消费）。 */
+    /** 上一步进入预载范围（band0）的颗 id（消费；按预载区间刷新间隔粒度）。 */
     public long[] pollEnteredPreload() {
         return monitor.pollEntered(0);
     }
@@ -127,7 +116,7 @@ public final class AsteroidProximityLoader {
         return monitor.pollLeft(0);
     }
 
-    /** 上一步进入强载范围（band1）的颗 id（消费）。 */
+    /** 上一步进入强载范围（band1）的颗 id（消费；每 tick 粒度）。 */
     public long[] pollEnteredStrong() {
         return monitor.pollEntered(1);
     }
@@ -154,18 +143,8 @@ public final class AsteroidProximityLoader {
         return monitor.buildTotal();
     }
 
-    /** 最近一次 update 耗时 ns（含定期检索启动那 tick）。 */
+    /** 最近一次 update 耗时 ns。 */
     public long lastUpdateNs() {
         return lastUpdateNs;
-    }
-
-    /** 最近一次定期检索启动耗时 ns（首帧精测分摊的那 tick）。 */
-    public long lastRefreshNs() {
-        return lastRefreshNs;
-    }
-
-    /** 剩余多少 tick 触发下一次定期检索。 */
-    public long ticksUntilNextPreload(long tick) {
-        return Math.max(0, lastPreRefreshTick + preloadIntervalTicks - tick);
     }
 }
