@@ -38,8 +38,20 @@ public final class AsteroidOrbit {
     /** 引力参数（块³/tick²），全系统统一。 */
     public final double mu;
 
+    /** 小行星类型（实体化预留字段；目前为空字符串占位，后续由确定性派生填充）。 */
+    public final String type;
+    /** 小行星类型变体编号（实体化预留字段；目前为 0 占位，后续由确定性派生填充）。 */
+    public final int variant;
+
+    /** 8 参构造：不指定实体化字段时使用空值占位（type=""，variant=0）。 */
     public AsteroidOrbit(long index, double a, double e, double i, double omega,
                          double argP, double m0, double mu) {
+        this(index, a, e, i, omega, argP, m0, mu, "", 0);
+    }
+
+    /** 完整构造（含实体化预留字段）。 */
+    public AsteroidOrbit(long index, double a, double e, double i, double omega,
+                         double argP, double m0, double mu, String type, int variant) {
         this.index = index;
         this.a = a;
         this.e = e;
@@ -48,6 +60,8 @@ public final class AsteroidOrbit {
         this.argP = argP;
         this.m0 = m0;
         this.mu = mu;
+        this.type = type;
+        this.variant = variant;
     }
 
     /** 平均角速度 n = √(μ/a³)（弧度/tick）。 */
