@@ -15,6 +15,14 @@ public class SpaceSimulationConfig {
     public static final ModConfigSpec.DoubleValue rapierRebaseOriginY;
     public static final ModConfigSpec.DoubleValue rapierRebaseOriginZ;
 
+    public static final ModConfigSpec.LongValue asteroidSeed;
+    public static final ModConfigSpec.LongValue asteroidTotalCount;
+    public static final ModConfigSpec.DoubleValue asteroidInnerRadius;
+    public static final ModConfigSpec.DoubleValue asteroidOuterRadius;
+    public static final ModConfigSpec.DoubleValue asteroidMaxEccentricity;
+    public static final ModConfigSpec.DoubleValue asteroidMaxInclinationDeg;
+    public static final ModConfigSpec.LongValue asteroidInnerOrbitPeriodTicks;
+
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -78,6 +86,42 @@ public class SpaceSimulationConfig {
 
             rapierRebaseOriginZ = builder.comment("Explicit physics scene origin Z (world blocks). 0 = auto.")
                     .defineInRange("rapierRebaseOriginZ", 0.0, -2_100_000_000.0, 2_100_000_000.0);
+
+        builder.pop();
+
+        builder.push("Asteroid System");
+
+            asteroidSeed = builder.comment(
+                    "Seed of the procedural asteroid universe. Changing it deterministically re-generates " +
+                            "every orbit (same seed + same index = same orbit, across sessions and machines).")
+                    .defineInRange("asteroidSeed", 0x5EED20260825L, Long.MIN_VALUE, Long.MAX_VALUE);
+
+            asteroidTotalCount = builder.comment(
+                    "Total number of asteroids. Identity range is [0, totalCount-1]; every asteroid is derived " +
+                            "on demand from its index, so the count can be hundreds of millions or billions with " +
+                            "zero memory/storage cost.")
+                    .defineInRange("asteroidTotalCount", 1_073_741_824L, 1L, Long.MAX_VALUE);
+
+            asteroidInnerRadius = builder.comment("Inner radius of the asteroid belt, in blocks from the world " +
+                            "origin (the sun).")
+                    .defineInRange("asteroidInnerRadius", 1_000_000.0, 10.0, 1.0E9);
+
+            asteroidOuterRadius = builder.comment("Outer radius of the asteroid belt, in blocks from the world origin.")
+                    .defineInRange("asteroidOuterRadius", 2_000_000.0, 10.0, 1.0E9);
+
+            asteroidMaxEccentricity = builder.comment("Maximum eccentricity of asteroid orbits (0 = circular, " +
+                            "must be < 1 for elliptical orbits; classical belts stay around 0.05~0.35).")
+                    .defineInRange("asteroidMaxEccentricity", 0.35, 0.0, 0.9999);
+
+            asteroidMaxInclinationDeg = builder.comment("Maximum orbital inclination in degrees (controls belt " +
+                            "thickness perpendicular to the ecliptic).")
+                    .defineInRange("asteroidMaxInclinationDeg", 15.0, 0.0, 90.0);
+
+            asteroidInnerOrbitPeriodTicks = builder.comment(
+                    "Orbital period at the belt inner radius in game ticks (20 ticks = 1 second). The system-wide " +
+                            "gravitational parameter mu is derived from this by Kepler's third law: " +
+                            "mu = (2*PI/T)^2 * innerRadius^3, so orbits follow T = 2*PI*sqrt(a^3/mu).")
+                    .defineInRange("asteroidInnerOrbitPeriodTicks", 62_830_000L, 1L, Long.MAX_VALUE);
 
         builder.pop();
 

@@ -6,13 +6,16 @@ import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.slf4j.Logger;
 
 import com.mojang.logging.LogUtils;
 
 import net.neoforged.fml.common.Mod;
+import org.xyccwa.space_simulation.asteroid.AsteroidUniverseSource;
 import org.xyccwa.space_simulation.attachment.SpaceSimulationAttachments;
 import org.xyccwa.space_simulation.client.WorldSphereRenderer;
+import org.xyccwa.space_simulation.command.AsteroidCommand;
 import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
 import org.xyccwa.space_simulation.damage.PlayerAccelerationDamage;
 import org.xyccwa.space_simulation.damage.SunKillHandler;
@@ -48,6 +51,9 @@ public class SpaceSimulation {
 
         NeoForge.EVENT_BUS.register(damageHandler);
         NeoForge.EVENT_BUS.register(sunKillHandler);
+
+        // 程序化小行星系统：/asteroid 命令（meta / info <index>）
+        NeoForge.EVENT_BUS.addListener(AsteroidCommand::register);
 
         // 客户端:注册世界球体着色器(mod 总线事件,服务器端不加载客户端类)
         if (FMLEnvironment.dist.isClient()) {
