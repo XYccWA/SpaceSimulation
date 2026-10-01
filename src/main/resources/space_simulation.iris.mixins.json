@@ -1,0 +1,17 @@
+{
+  "required": false,
+  "package": "org.xyccwa.space_simulation.mixin.iris",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "org.xyccwa.space_simulation.mixin.iris.IrisMixinPlugin",
+  "client": [
+    "CelestialUniformsMixin",
+    "CommonUniformsMixin",
+    "ShadowRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

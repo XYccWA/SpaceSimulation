@@ -1,0 +1,11 @@
+{
+  "name": "硅质岩核 II",
+  "variants": [
+    { "name": "变体1", "structure": "space_simulation:core_siliceous_2_1", "weight": 1.0 },
+    { "name": "变体2", "structure": "space_simulation:core_siliceous_2_2", "weight": 1.0 },
+    { "name": "变体3", "structure": "space_simulation:core_siliceous_2_3", "weight": 1.0 },
+    { "name": "变体4", "structure": "space_simulation:core_siliceous_2_4", "weight": 1.0 },
+    { "name": "变体5", "structure": "space_simulation:core_siliceous_2_5", "weight": 1.0 },
+    { "name": "变体6", "structure": "space_simulation:core_siliceous_2_6", "weight": 1.0 }
+  ]
+}

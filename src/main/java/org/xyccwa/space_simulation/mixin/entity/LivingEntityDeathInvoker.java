@@ -7,9 +7,8 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 /**
  * 暴露 {@link LivingEntity#die(DamageSource)}（protected）。
- * 太阳警戒线处死需要无视游戏模式（创造/旁观）直接触发死亡流程：
- * - 创造模式：普通伤害被 isInvulnerableTo 拦截，需借 bypasses_invulnerability 标签 + 巨额伤害；
- * - 旁观模式：isInvulnerableTo 恒 true，任何 hurt() 都无效，只能直接调用 die()。
+ * 太阳表面处死需要无视游戏模式（创造/旁观）直接触发死亡流程：
+ * 这些模式下任何 {@code hurt()} 都会因 isInvulnerableTo 恒 true 而失败，只能直接调用 die()。
  */
 @Mixin(LivingEntity.class)
 public interface LivingEntityDeathInvoker {

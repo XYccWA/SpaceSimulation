@@ -53,5 +53,10 @@ public final class ModPayloads {
                 }
             });
         });
+
+        // 服务器 -> 客户端：当前世界的太阳半径（渲染球面与高温判定同源）
+        registrar.playToClient(SunRadiusPayload.TYPE, SunRadiusPayload.STREAM_CODEC, (payload, ctx) ->
+                ctx.enqueueWork(() -> org.xyccwa.space_simulation.client.WorldSphereRenderer
+                        .setSyncedRadius(payload.radius())));
     }
 }

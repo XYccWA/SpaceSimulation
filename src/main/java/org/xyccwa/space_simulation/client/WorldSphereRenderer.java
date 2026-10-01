@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
- * 世界球体渲染器:在世界原点 (0,0,0) 渲染半径 25000 格的黄白色球面。
+ * 世界球体渲染器:在世界原点 (0,0,0) 渲染半径由世界种子派生(见 SunRadius)的恒星球面。
  *
  * 实现:非实体、非方块,单次 draw call(覆盖全屏的 3 顶点 NDC 三角形)+ 自定义着色器
  * (隐式球面 ray-sphere 求交,片元从 NDC 逐像素重建视线方向),在
@@ -40,12 +40,22 @@ import java.nio.file.Path;
 @EventBusSubscriber(value = Dist.CLIENT, modid = SpaceSimulation.MOD_ID)
 public class WorldSphereRenderer {
 
-    /** 太阳半径范围(格),随世界种子在 [MIN, MAX] 间确定性变化。 */
-    public static final double MIN_RADIUS = 200000.0;
-    public static final double MAX_RADIUS = 500000.0;
+    /** 太阳半径范围(格),随世界种子在 [MIN, MAX] 间确定性变化(与服务端判定共用 SunRadius)。 */
+    public static final double MIN_RADIUS = org.xyccwa.space_simulation.util.SunRadius.MIN_RADIUS;
+    public static final double MAX_RADIUS = org.xyccwa.space_simulation.util.SunRadius.MAX_RADIUS;
 
     private static double currentRadius = MIN_RADIUS;
     private static long cachedSeed = Long.MIN_VALUE;
+
+    /** 服务器同步来的太阳半径;NaN = 尚未收到(回退本地种子派生)。 */
+    private static double syncedRadius = Double.NaN;
+
+    /** 接收服务器同步的太阳半径:多人游戏下客户端拿不到世界种子,判定与渲染必须同源。 */
+    public static void setSyncedRadius(double radius) {
+        if (Double.isNaN(radius) || radius <= 0) return;
+        syncedRadius = radius;
+        currentRadius = radius;
+    }
 
     /** 当前世界的太阳半径(格)。 */
     public static double getCurrentRadius() {
@@ -109,8 +119,10 @@ public class WorldSphereRenderer {
             if (uInvView != null) {
                 uInvView.set(invView);
             }
-            // 太阳半径:由世界种子确定性生成(200000 ~ 500000 格)
-            if (mc.level != null) {
+            // 太阳半径:优先用服务器同步值(判定与渲染同源),未收到时回退本地种子派生
+            if (!Double.isNaN(syncedRadius)) {
+                currentRadius = syncedRadius;
+            } else if (mc.level != null) {
                 long seed = 0L;
                 net.minecraft.server.MinecraftServer srv = mc.getSingleplayerServer();
                 if (srv != null) {
@@ -118,14 +130,23 @@ public class WorldSphereRenderer {
                 }
                 if (seed != cachedSeed) {
                     cachedSeed = seed;
-                    java.util.Random rnd = new java.util.Random(seed);
-                    currentRadius = MIN_RADIUS + rnd.nextDouble() * (MAX_RADIUS - MIN_RADIUS);
+                    currentRadius = org.xyccwa.space_simulation.util.SunRadius.forSeed(seed);
                     SpaceSimulation.LOGGER.info("[WorldSphere] seed {} -> sun radius {}", seed, currentRadius);
                 }
             }
             com.mojang.blaze3d.shaders.Uniform uRadius = sphereShader.getUniform("SphereRadius");
             if (uRadius != null) {
                 uRadius.set((float) currentRadius);
+            }
+            // 恒星光谱颜色的归一化基准(与 SunRadius 同源):半径区间变化时着色器自动跟随,
+            // 避免"半径整体变小 → starT 恒 0 → 所有太阳都变红"
+            com.mojang.blaze3d.shaders.Uniform uRadiusMin = sphereShader.getUniform("SunRadiusMin");
+            if (uRadiusMin != null) {
+                uRadiusMin.set((float) MIN_RADIUS);
+            }
+            com.mojang.blaze3d.shaders.Uniform uRadiusMax = sphereShader.getUniform("SunRadiusMax");
+            if (uRadiusMax != null) {
+                uRadiusMax.set((float) MAX_RADIUS);
             }
             // 屏幕尺寸(主渲染目标):片元着色器据此从 NDC 逐像素重建视线方向
             com.mojang.blaze3d.shaders.Uniform uSize = sphereShader.getUniform("ScreenSize");

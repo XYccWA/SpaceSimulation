@@ -1,5 +1,5 @@
 {
-  "message_id": "solar_burn",
+  "message_id": "solar_heat",
   "exhaustion": 0.1,
   "scaling": "never"
 }

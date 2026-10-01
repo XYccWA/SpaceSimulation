@@ -12,31 +12,28 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.xyccwa.space_simulation.SpaceSimulation;
 import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
+import org.xyccwa.space_simulation.util.SunRadius;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
-import java.util.UUID;
 
 /**
  * 玩家出生点 / 重生点管理。
  *
  * 历史教训（2026-08 实测修复）：
- * 1. 玩家登录/重生时绝不允许出现在太阳（世界原点，半径=solarKillRadius）内部，
- *    否则会被 SunKillHandler 秒杀，且因重生点缺失/无效回退到"太阳内的世界出生点"
- *    形成"重生→太阳→死亡"死循环；
+ * 1. 玩家登录/重生时绝不允许出现在太阳（世界原点，半径由世界种子派生）内部：
+ *    太阳球体是世界中心的主体，出生在球内既看不到正常天空，也会让默认出生点
+ *    （原版在原点附近）落在球体深处；
  * 2. 原实现把 {@code isSpawnPointSet}/{@code unifiedSpawnPoint}/{@code processedPlayers}
  *    做成 static 且跨世界不重置：单机同 JVM 内切换世界后，新世界会跳过出生点设置
- *    和玩家处理，玩家直接出生在默认 (8,64,8)（太阳内）并被跳过传送 → 秒杀循环；
+ *    和玩家处理，玩家直接出生在默认 (8,64,8)（太阳内）并被跳过传送；
  * 3. 原实现用 {@code player.teleportTo(...)} 传送：它只发位置包等客户端 ACK，
  *    服务器实体位置不变。客户端加载 5M 格外的地形时 ACK 长期不到，服务器按
- *    旧位置（太阳内）判杀。修复：先 {@code moveTo} 立即移动服务器位置（权威），
+ *    旧位置（太阳内）判定。修复：先 {@code moveTo} 立即移动服务器位置（权威），
  *    再 {@code connection.teleport} 通知客户端，不依赖 ACK 时序。
  *
  * 保证不变量：
  * - 世界出生点（重生 fallback 安全网）永不在太阳内；
- * - 玩家登录/重生时若身处太阳内，立即被传送到圆环安全区并重设个人重生点；
- * - 登录/重生后有短暂保护期（SPAWN_GRACE_TICKS），SunKillHandler 不击杀。
+ * - 玩家登录/重生时若身处太阳内，立即被传送到圆环安全区并重设个人重生点。
  */
 @EventBusSubscriber(modid = SpaceSimulation.MOD_ID)
 public class PlayerSpawnPoint {
@@ -50,18 +47,12 @@ public class PlayerSpawnPoint {
     private static final int MIN_Y = -10;
     private static final int MAX_Y = 10;
 
-    /** 登录/重生后的太阳击杀保护期（tick，100 = 5 秒） */
-    public static final int SPAWN_GRACE_TICKS = 100;
-
     private static final Random random = new Random();
 
     /** 当前已处理的世界（static 缓存按世界实例重置，防止单机切换世界串号） */
     private static ServerLevel cachedLevel = null;
     /** 当前世界的统一出生点（世界出生点或圆环随机点，必然远离太阳） */
     private static BlockPos unifiedSpawnPoint = null;
-
-    /** 登录/重生保护期：UUID -> 所在世界 gameTime 截止值（过期即清理） */
-    private static final Map<UUID, Long> spawnGraceUntil = new HashMap<>();
 
     /** 在圆环区域内随机生成一个出生点 */
     private static BlockPos generateRingPoint() {
@@ -71,31 +62,14 @@ public class PlayerSpawnPoint {
         return new BlockPos((int) (radius * Math.cos(angle)), randomY, (int) (radius * Math.sin(angle)));
     }
 
-    /** 三维位置是否在太阳击杀球体内（与 SunKillHandler 同一判定） */
-    public static boolean isInsideSun(double x, double y, double z) {
-        double killRadius = SpaceSimulationConfig.solarKillRadius.get();
-        if (killRadius <= 0) return false;
-        return x * x + y * y + z * z < killRadius * killRadius;
-    }
-
-    public static boolean isInsideSun(BlockPos pos) {
-        return isInsideSun(pos.getX(), pos.getY(), pos.getZ());
-    }
-
-    /** 授予登录/重生保护期（期间 SunKillHandler 不击杀） */
-    public static void grantSpawnGrace(ServerPlayer player) {
-        spawnGraceUntil.put(player.getUUID(), player.serverLevel().getGameTime() + SPAWN_GRACE_TICKS);
-    }
-
-    /** 是否处于登录/重生保护期内 */
-    public static boolean isWithinSpawnGrace(ServerPlayer player) {
-        Long until = spawnGraceUntil.get(player.getUUID());
-        if (until == null) return false;
-        if (player.serverLevel().getGameTime() >= until) {
-            spawnGraceUntil.remove(player.getUUID());
-            return false;
-        }
-        return true;
+    /** 三维位置是否在太阳球体内（球心世界原点，半径由世界种子派生，见 SunRadius） */
+    private static boolean isInsideSun(ServerLevel level, BlockPos pos) {
+        double sunRadius = SunRadius.forServer(level.getServer());
+        if (sunRadius <= 0) return false;
+        double x = pos.getX();
+        double y = pos.getY();
+        double z = pos.getZ();
+        return x * x + y * y + z * z < sunRadius * sunRadius;
     }
 
     /**
@@ -131,7 +105,7 @@ public class PlayerSpawnPoint {
 
         // 世界出生点是所有"重生 fallback"的安全网：绝不允许留在太阳内部
         BlockPos worldSpawn = level.getSharedSpawnPos();
-        if (isInsideSun(worldSpawn)) {
+        if (isInsideSun(level, worldSpawn)) {
             unifiedSpawnPoint = generateRingPoint();
             level.setDefaultSpawnPos(unifiedSpawnPoint, 0f);
             LOGGER.info("World spawn was inside the sun; moved to unified spawn at ({}, {}, {})",
@@ -149,16 +123,14 @@ public class PlayerSpawnPoint {
         ServerLevel level = player.serverLevel();
         if (level.isClientSide()) return;
 
-        grantSpawnGrace(player);
-
         boolean useUnified = SpaceSimulationConfig.useUnifiedSpawn.get();
         BlockPos target = useUnified
                 ? (unifiedSpawnPoint != null ? unifiedSpawnPoint : generateRingPoint())
                 : generateRingPoint();
 
-        if (isInsideSun(player.blockPosition())) {
+        if (isInsideSun(level, player.blockPosition())) {
             // 登录位置在太阳内部（旧档出生点、未修正的世界出生点等）：
-            // 立即拉出太阳 + 重设个人重生点，杜绝"登录即死"
+            // 立即拉出太阳 + 重设个人重生点
             setRespawnPosition(player, target);
             teleportPlayerTo(player, target);
             LOGGER.info("Player {} logged in inside the sun at ({}, {}, {}); teleported to ({}, {}, {})",
@@ -180,11 +152,9 @@ public class PlayerSpawnPoint {
         ServerLevel level = player.serverLevel();
         if (level.isClientSide()) return;
 
-        grantSpawnGrace(player);
-
         // 兜底：无论什么原因（重生点缺失/无效、世界出生点仍在太阳内等）重生到了
-        // 太阳内部，立即打断"重生→死亡"循环：重设个人重生点并传送到圆环安全区
-        if (isInsideSun(player.blockPosition())) {
+        // 太阳内部，立即拉回圆环安全区并重设个人重生点
+        if (isInsideSun(level, player.blockPosition())) {
             BlockPos target = unifiedSpawnPoint != null ? unifiedSpawnPoint : generateRingPoint();
             setRespawnPosition(player, target);
             teleportPlayerTo(player, target);

@@ -1,0 +1,20 @@
+{
+  "name": "外小行星带",
+  "inner_radius": 1600000.0,
+  "outer_radius": 2000000.0,
+  "height": { "type": "altitude", "min": -8000.0, "max": 9000.0 },
+  "density": { "type": "total", "count": 17000000 },
+  "max_eccentricity": 0.25,
+  "types": [
+    { "type": "space_simulation:core_carbonaceous_3", "weight": 1.0 },
+    { "type": "space_simulation:core_siliceous_2", "weight": 1.0 },
+    { "type": "space_simulation:core_siliceous_3", "weight": 2.0 },
+    { "type": "space_simulation:core_iron_asteroid", "weight": 3.0 },
+    { "type": "space_simulation:core_copper_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_chromite_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_titanium_asteroid", "weight": 3.0 },
+    { "type": "space_simulation:core_tungsten_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_rhenium_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_niobium_tantalum_asteroid", "weight": 2.0 }
+  ]
+}

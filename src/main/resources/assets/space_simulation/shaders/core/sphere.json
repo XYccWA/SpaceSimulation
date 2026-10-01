@@ -10,6 +10,8 @@
         { "name": "ScreenSize", "type": "float", "count": 2, "values": [ 854.0, 480.0 ] },
         { "name": "SphereCenterView", "type": "float", "count": 3, "values": [ 0.0, 0.0, 0.0 ] },
         { "name": "SphereRadius", "type": "float", "count": 1, "values": [ 150000.0 ] },
+        { "name": "SunRadiusMin", "type": "float", "count": 1, "values": [ 50000.0 ] },
+        { "name": "SunRadiusMax", "type": "float", "count": 1, "values": [ 100000.0 ] },
         { "name": "Time", "type": "float", "count": 1, "values": [ 0.0 ] }
     ]
 }

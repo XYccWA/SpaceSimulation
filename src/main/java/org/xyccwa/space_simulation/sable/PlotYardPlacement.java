@@ -3,6 +3,7 @@ package org.xyccwa.space_simulation.sable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
+import org.xyccwa.space_simulation.util.SunRadius;
 
 /**
  * plotyard（sable 子层级实际方块存储区）放置策略。
@@ -10,8 +11,9 @@ import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
  * 目标：把 plotyard 从默认的 (10000, 10000) plot（≈ 20,480,000 块，f32 ULP=2 块，
  * 物理精度灾难性丢失）移动到太阳（世界原点球体）内部，同时**避开世界原点**：
  *
- * 1. 太阳内部：整个网格完全位于半径 {@link #MIN_SUN_RADIUS}（plotyardMinSunRadius
- *    配置，默认 200,000）的球内，任何世界（太阳 ≥ 最小）都不越界；
+ * 1. 太阳内部：整个网格完全位于半径 {@link #MIN_SUN_RADIUS}（= {@link SunRadius#MIN_RADIUS}，
+ *    即世界里可能出现的**最小**太阳半径）的球内。配置 plotyardMinSunRadius 只允许把网格
+ *    调得更保守，取值一律被裁剪到 [最小网格半径, 最小太阳半径]，因此网格**不可能**越出太阳；
  * 2. 避开原点：网格块坐标从 2048 起（origin=1 plot），保证 (0,0,0) 不在 plotgrid 内。
  *    这是硬约束——多个 mod（simulated 的 PhysicsStaff 拖动 / PhysicsAssembler 装配）
  *    用 (0,0,0) 作为"世界锚点"哨兵传给约束配置，sable 的 validateAnchors 会拒绝
@@ -19,8 +21,8 @@ import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
  *    用航空学调试工具拖动子层级直接崩溃）。
  *
  * 数学：网格块范围 [2048, (1+2^L)·2048)，最远角点距离 = (1+2^L)·2048×√2，
- * 须 ≤ 设计半径；L 从 7 向下取满足条件最大值（默认 200,000 → L=6，4096 个 plot，
- * 角点 188,260 块，f32 ULP ≈ 0.03 块 ≈ 3 cm，较默认 2 块提升约 64 倍）。
+ * 须 ≤ 设计半径；L 从 7 向下取满足条件最大值（设计半径 50,000 = 最小太阳半径 → L=4，
+ * 256 个 plot，角点 49,238 块，f32 ULP ≈ 0.004 块 ≈ 4 mm，较 sable 默认位置 2 块提升约 512 倍）。
  *
  * 说明：子层级方块的实际存储位置（plotyard）与玩家看到的逻辑位置（logicalPose）
  * 完全解耦（Pose3dc.transformPosition 编码映射），移动 plotyard 不影响飞船显示、
@@ -36,8 +38,8 @@ public final class PlotYardPlacement {
     /** sable 默认网格 logSideLength 上限（2^7 × 2^7 = 16384 个 plot） */
     public static final int DEFAULT_LOG_SIDE_LENGTH = 7;
 
-    /** 最小太阳半径设计基准（块）：plotyardMinSunRadius 配置默认值，用户指定 */
-    public static final double MIN_SUN_RADIUS = 200_000.0;
+    /** 最小太阳半径设计基准（块）：世界里可能出现的最小太阳半径（见 SunRadius） */
+    public static final double MIN_SUN_RADIUS = SunRadius.MIN_RADIUS;
 
     /** √2 预计算 */
     private static final double SQRT2 = Math.sqrt(2.0);
@@ -76,22 +78,27 @@ public final class PlotYardPlacement {
     }
 
     private static Placement compute() {
-        // 太阳最小大小由 plotyardMinSunRadius 定义：网格必须完全位于该半径球内
-        final double designRadius = SpaceSimulationConfig.plotyardMinSunRadius.get();
-        final double sunRadius = SpaceSimulationConfig.solarKillRadius.get();
+        // 配置只能把网格调小（更保守），绝不能越出"世界里可能出现的最小太阳"。
+        final double configured = SpaceSimulationConfig.plotyardMinSunRadius.get();
+        double designRadius = Math.min(configured, MIN_SUN_RADIUS);
 
         if (designRadius < MIN_RADIUS_FOR_PLACEMENT) {
-            LOGGER.warn("[PlotYard] plotyardMinSunRadius {} < minimum {} for the smallest grid (2×2 plots): keeping sable default plotyard (20,480,000 blocks).",
-                    format(designRadius), format(MIN_RADIUS_FOR_PLACEMENT));
-            return new Placement(0, 0, 0, false);
-        }
-
-        if (sunRadius <= 0) {
-            LOGGER.warn("[PlotYard] solarKillRadius={} (sun disabled): plot grid is placed inside the design-minimum sun but the kill boundary is disabled.",
-                    format(sunRadius));
-        } else if (sunRadius < designRadius) {
-            LOGGER.warn("[PlotYard] actual solarKillRadius={} < plotyardMinSunRadius={}: the plot grid fits the design-minimum sun but may extend past the actual sun boundary. Raise solarKillRadius to at least {} to guarantee the grid stays inside the actual sun.",
-                    format(sunRadius), format(designRadius), format(designRadius));
+            // 配置比最小网格还小：抬到最小网格所需半径，保证网格仍落在太阳内
+            //（只有当"最小太阳半径"本身就容不下最小网格时才真的无解）。
+            if (MIN_SUN_RADIUS < MIN_RADIUS_FOR_PLACEMENT) {
+                LOGGER.error("[PlotYard] smallest world sun radius {} < minimum grid corner distance {}: "
+                                + "the plot grid cannot be placed inside the sun; keeping sable default plotyard.",
+                        format(MIN_SUN_RADIUS), format(MIN_RADIUS_FOR_PLACEMENT));
+                return new Placement(0, 0, 0, false);
+            }
+            LOGGER.warn("[PlotYard] plotyardMinSunRadius={} < minimum grid corner distance {}: clamped up to {} "
+                            + "so the grid still fits inside the sun.",
+                    format(configured), format(MIN_RADIUS_FOR_PLACEMENT), format(MIN_RADIUS_FOR_PLACEMENT));
+            designRadius = MIN_RADIUS_FOR_PLACEMENT;
+        } else if (configured > MIN_SUN_RADIUS) {
+            LOGGER.warn("[PlotYard] plotyardMinSunRadius={} > smallest world sun radius={}: clamped down to {} "
+                            + "so the plot grid always stays inside the sun.",
+                    format(configured), format(MIN_SUN_RADIUS), format(MIN_SUN_RADIUS));
         }
 
         // 网格块范围 [2048, (1+2^L)·2048)，角点距离 = (1+2^L)·2048×√2 ≤ designRadius
@@ -112,13 +119,13 @@ public final class PlotYardPlacement {
         final long gridMax = (1L << logSideLength) * PLOT_BLOCK_SIZE + PLOT_BLOCK_SIZE; // 最大块坐标（开区间）
         final double cornerDistance = gridMax * SQRT2;
 
-        LOGGER.info("[PlotYard] sun minimum={} (actual solarKillRadius={}) → logSideLength={}, origin=({}, {}) plot; "
-                        + "grid block range [{}, {})×[{}, {}), farthest corner {} blocks from origin (design sun {}), "
-                        + "world origin (0,0,0) excluded",
-                format(designRadius), format(sunRadius),
+        LOGGER.info("[PlotYard] design radius={} (smallest world sun={}), grid guaranteed inside the sun → "
+                        + "logSideLength={}, origin=({}, {}) plot; grid block range [{}, {})×[{}, {}), "
+                        + "farthest corner {} blocks from origin, world origin (0,0,0) excluded",
+                format(designRadius), format(MIN_SUN_RADIUS),
                 logSideLength, ORIGIN, ORIGIN,
                 PLOT_BLOCK_SIZE, gridMax, PLOT_BLOCK_SIZE, gridMax,
-                format(cornerDistance), format(designRadius));
+                format(cornerDistance));
 
         return new Placement(logSideLength, ORIGIN, ORIGIN, true);
     }

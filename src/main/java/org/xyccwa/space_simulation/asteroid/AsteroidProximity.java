@@ -1,5 +1,6 @@
 package org.xyccwa.space_simulation.asteroid;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -9,6 +10,9 @@ import java.util.Set;
  * 检索问题：给定玩家位置 P 与半径 R，找出"轨道穿过 P 球"的所有轨道环，
  * 并求得每环上"落入球内"的相位窗口 —— 这是静态几何（环固定、球固定），
  * 只随玩家位置 P 与半径 R 变化，不随游戏刻度变化。
+ *
+ * 多带：每个环带（{@link AsteroidUniverse.Belt}）有独立的半径区间/倾角区间/档数/每环颗数，
+ * 检索按带循环，各自做窗口逆推与粗筛；带内返回的 cellKey 是全局键。
  *
  * 用途（AsteroidProximityMonitor 持续监测的"静态层"）：
  *   1. 窗口逆推：从 P、R 推断可能相交的单元（轨道环）档窗口，枚举候选单元；
@@ -24,8 +28,10 @@ import java.util.Set;
  *   d2(ν) = |pos(ν) − P|² 的数值采样（均匀 128 点）找出 {d2 ≤ R²} 的 ν 区间边界。
  *
  * 本类提供：
- *   queryCells(px,py,pz, r, margin) —— 窗口逆推 → 候选单元表（含相位窗口）
- *   nearby(px,py,pz, r, tick, universe) —— 一次性查询：候选 → 相位判定 → 精确定位 → 距离过滤
+ *   queryCells(...)     —— 窗口逆推 → 候选单元表（全局 cellKey）
+ *   phaseWindow(...)    —— 环-球相交 → 球内相位窗口
+ *   ringIdxWindow(...)  —— 相位窗口 + tick → 环内序号区间
+ *   nearby(...)         —— 一次性查询：候选 → 相位判定 → 精确定位 → 距离过滤
  * 供 Monitor 与 /asteroid near 命令使用。
  */
 public final class AsteroidProximity {
@@ -68,54 +74,66 @@ public final class AsteroidProximity {
     // ---------- 候选单元窗口逆推 ----------
 
     /**
-     * 从 P、R 推断可能相交的单元窗口（超集，含 margin 余量）。
-     * 返回：{aLo, aHi, eLo, eHi? } —— 简化为直接枚举档区间并回调 accumulate：
-     * 对每个 (aIdx, eIdx, iIdx, oIdx) 的档，若粗条件满足则加入。
-     * 粗条件（均只筛"明显不可能"，保超集）：
-     *   - 径向：轨道近/远拱点跨过 [rP−R, rP+R]：a(1+e_hi) ≥ rP−R 且 a(1−e_hi) ≤ rP+R
-     *   - 高度：轨道最高点够得到球：a·sin(i_hi) ≥ |py|−R
-     *   - 方位：轨道方位跨度 [Ω−α, Ω+α]（α 保守取 i_max）与球方位窗口 [az−θ, az+θ] 有交
-     * 传入 cellCollector 回调 (aIdx,eIdx,iIdx,oIdx)，返回候选单元键。
+     * 从 P、R 推断可能相交的单元窗口（超集，含 margin 余量），对全部环带逐带枚举。
+     * 返回全局 cellKey 数组（按带顺序，带内按 e→a→i→o 枚举）。
      */
     public static long[] queryCells(AsteroidUniverse u,
                                     double px, double py, double pz, double r, double margin) {
+        ArrayList<Long> out = new ArrayList<>();
+        for (AsteroidUniverse.Belt b : u.belts) {
+            queryCellsForBelt(b, px, py, pz, r, margin, out);
+        }
+        long[] arr = new long[out.size()];
+        for (int i = 0; i < arr.length; i++) arr[i] = out.get(i);
+        return arr;
+    }
+
+    /**
+     * 单个环带的候选单元枚举（全局 cellKey 追加到 out）。
+     *
+     * 粗条件（均只筛"明显不可能"，保超集）：
+     *   - 径向：轨道近/远拱点跨过 [rP−R, rP+R]：a(1+e_hi) ≥ rP−R 且 a(1−e_hi) ≤ rP+R
+     *   - 高度上限：轨道最高点够得到球：a·sin(i_hi) ≥ |py|−R
+     *   - 高度下限：档内最小最高点仍在球上方 → 整档在球外（仅倾角下限 > 0 的带会命中）
+     *   - 方位：环上方位覆盖全 360°，oIdx 全遍历（精测由 phaseWindow 剔除）
+     */
+    public static void queryCellsForBelt(AsteroidUniverse.Belt b,
+                                         double px, double py, double pz, double r, double margin,
+                                         ArrayList<Long> out) {
         double reff = r * (1.0 + margin);
         double rP = Math.sqrt(px * px + py * py + pz * pz);
         // 快速空：球与整个环带分离（带的最小/最大轨道距离之外）
-        double qMin = u.innerRadius * (1.0 - u.maxEccentricity);
-        double qMax = u.outerRadius * (1.0 + u.maxEccentricity);
-        if (rP + reff < qMin || rP - reff > qMax) return new long[0];
+        double qMin = b.innerRadius * (1.0 - b.maxEccentricity);
+        double qMax = b.outerRadius * (1.0 + b.maxEccentricity);
+        if (rP + reff < qMin || rP - reff > qMax) return;
 
-        // 注意：轨道环在 xz 平面的投影是包围原点的椭圆 → 环上点方位覆盖全 360°，
-        // 不能按 Ω 方位窗口排除候选（会漏报）。oIdx 全遍历，精测由 phaseWindow 剔除。
-        double da = (u.outerRadius - u.innerRadius) / u.A_BINS;
-        double dE = u.maxEccentricity / u.E_BINS;
-        double dI = u.maxInclinationRad / u.I_BINS;
+        double da = (b.outerRadius - b.innerRadius) / b.aBins;
+        double dE = b.maxEccentricity / AsteroidUniverse.E_BINS;
+        double dI = b.inclinationSpanRad() / AsteroidUniverse.I_BINS;
 
-        java.util.ArrayList<Long> out = new java.util.ArrayList<>();
-        for (int eIdx = 0; eIdx < u.E_BINS; eIdx++) {
+        for (int eIdx = 0; eIdx < AsteroidUniverse.E_BINS; eIdx++) {
             double eLo = eIdx * dE, eHi = (eIdx + 1) * dE;
-            for (int aIdx = 0; aIdx < u.A_BINS; aIdx++) {
-                double aLoR = u.innerRadius + aIdx * da;
+            for (int aIdx = 0; aIdx < b.aBins; aIdx++) {
+                double aLoR = b.innerRadius + aIdx * da;
                 double aHiR = aLoR + da;
                 // 近拱 q=a(1-e)：档内最小近拱 aLoR(1-eHi) 若 > rP+reff → 整档在球外
                 if (aLoR * (1 - eHi) > rP + reff) continue;
                 // 远拱 Q=a(1+e)：档内最大远拱 aHiR(1+eHi) 若 < rP-reff → 整档在球内侧
                 if (aHiR * (1 + eHi) < rP - reff) continue;
-                for (int iIdx = 0; iIdx < u.I_BINS; iIdx++) {
-                    double iHi = (iIdx + 1) * dI;
-                    // 高度粗筛：轨道最大 |y| = a·sin(iHi)（外层上限 aHiR 保超集）
+                for (int iIdx = 0; iIdx < AsteroidUniverse.I_BINS; iIdx++) {
+                    double iHi = b.minInclinationRad + (iIdx + 1) * dI;
+                    // 高度上限粗筛：轨道最大 |y| = a·sin(iHi)（外层上限 aHiR 保超集）
                     if (aHiR * Math.sin(iHi) < Math.abs(py) - reff) continue;
+                    // 高度下限粗筛：档内最小最高点（内层最小 a、最小 e、档内最小 i）仍高于球顶 → 剔除
+                    double iLo = b.minInclinationRad + iIdx * dI;
+                    if (aLoR * (1 - eLo) * Math.sin(iLo) > Math.abs(py) + reff) continue;
                     // oIdx 全遍历（环上方位全覆盖，不能按 Ω 滤）
-                    for (int oIdx = 0; oIdx < u.O_BINS; oIdx++) {
-                        out.add(AsteroidUniverse.packCell(aIdx, eIdx, iIdx, oIdx));
+                    for (int oIdx = 0; oIdx < AsteroidUniverse.O_BINS; oIdx++) {
+                        out.add(AsteroidUniverse.packCell(b, aIdx, eIdx, iIdx, oIdx));
                     }
                 }
             }
         }
-        long[] arr = new long[out.size()];
-        for (int i = 0; i < arr.length; i++) arr[i] = out.get(i);
-        return arr;
     }
 
     /** 角度标准化到 [0, 2π)。 */
@@ -126,16 +144,22 @@ public final class AsteroidProximity {
     // ---------- 环-球相交测试 + 相位窗口 ----------
 
     /**
-     * 单元（轨道环）与球 (P, R) 的相交测试，返回球内相位窗口。
+     * 单元（轨道环）与球 (P, R) 的相交测试，返回球内相位窗口（自动定位带）。
      *
      * @return null = 不相交；否则 {mLo, mHi, wrap(0/1)}：
      *         相位 m ∈ [0,2π)，wrap=0 → 单区间 [mLo, mHi]；wrap=1 → 两段 [0,mHi]∪[mLo,2π)。
      */
     public static double[] phaseWindow(AsteroidUniverse u, long cellKey,
                                        double px, double py, double pz, double r) {
-        double[] el = u.cellElements(cellKey);
+        return phaseWindow(u, u.belts[u.beltIndexOfCell(cellKey)], cellKey, px, py, pz, r);
+    }
+
+    /** 同上（已定位带，供 Monitor 按带循环免重复定位）。 */
+    public static double[] phaseWindow(AsteroidUniverse u, AsteroidUniverse.Belt b, long cellKey,
+                                       double px, double py, double pz, double r) {
+        double[] el = u.cellElements(b, cellKey);
         double a = el[0], e = el[1], i = el[2], omega = el[3];
-        double[] b = ringBasis(omega, i);
+        double[] basis = ringBasis(omega, i);
         double r2 = r * r;
 
         // 1) 初扫：32 均匀点找全局最小距离采样点（相交判定不依赖采样点命中球内）
@@ -143,7 +167,7 @@ public final class AsteroidProximity {
         double bestNu = 0, bestD2 = Double.MAX_VALUE;
         for (int s = 0; s < S; s++) {
             double nu = 2 * Math.PI * s / S;
-            double d2 = dist2(nu, a, e, b, px, py, pz);
+            double d2 = dist2(nu, a, e, basis, px, py, pz);
             if (d2 < bestD2) { bestD2 = d2; bestNu = nu; }
         }
         // 2) 邻域递归细化最小距离（2 层 × 8 点，区间逐层缩小；初扫间距内必含真极小）
@@ -153,7 +177,7 @@ public final class AsteroidProximity {
             double bs = Double.MAX_VALUE, bx = lo;
             for (int s = 0; s <= 8; s++) {
                 double x = lo + (hi - lo) * s / 8.0;
-                double d2 = dist2(x, a, e, b, px, py, pz);
+                double d2 = dist2(x, a, e, basis, px, py, pz);
                 if (d2 < bs) { bs = d2; bx = x; }
             }
             double hh = (hi - lo) / 8.0;
@@ -162,7 +186,7 @@ public final class AsteroidProximity {
         double minNu = 0, minD2 = Double.MAX_VALUE;
         for (int s = 0; s <= 8; s++) {
             double x = lo + (hi - lo) * s / 8.0;
-            double d2 = dist2(x, a, e, b, px, py, pz);
+            double d2 = dist2(x, a, e, basis, px, py, pz);
             if (d2 < minD2) { minD2 = d2; minNu = x; }
         }
         // 精判：环（的最小距离）在球外 → 不相交。相切（minD2≈r2）视为无球内颗。
@@ -170,8 +194,8 @@ public final class AsteroidProximity {
 
         // 3) 从最接近点向两侧步进扫描"出界"零点（d2 从 ≤r2 到 >r2）——窗口远窄于步长，首步即出界
         double step = 2 * Math.PI / 32;
-        Double edgeHi = scanExit(a, e, b, px, py, pz, r2, minNu, +step);
-        Double edgeLo = scanExit(a, e, b, px, py, pz, r2, minNu, -step);
+        Double edgeHi = scanExit(a, e, basis, px, py, pz, r2, minNu, +step);
+        Double edgeLo = scanExit(a, e, basis, px, py, pz, r2, minNu, -step);
         if (edgeHi == null || edgeLo == null) {
             // 某一侧整圈都在球内 → 几乎整环 ∈ 球 → 保守全窗口（精确过滤兜底，绝无漏报）
             return new double[]{0, 2 * Math.PI, 0};
@@ -226,15 +250,14 @@ public final class AsteroidProximity {
      * 返回 {lo1, hi1, lo2, hi2, nSeg}：nSeg=1 时区间 [lo1,hi1]；nSeg=2 时 [lo1,hi1]∪[lo2,hi2]。
      * 区间按"环内相位网格"（颗相位 = 2π(i+u)/k）反解，含 ±容差 1 保不漏。
      */
-    public static int[] ringIdxWindow(AsteroidUniverse u, double[] phaseWin, int k,
-                                      double n, long tick) {
+    public static int[] ringIdxWindow(double[] phaseWin, int k, double n, long tick) {
         double scale = k / (2 * Math.PI);
         double shift = (n * tick) % (2 * Math.PI);
         // 展开相位窗口为 1~2 段（每段独立判断，平移后可能跨 0）
         double[][] segs = (phaseWin[2] > 0.5)
                 ? new double[][]{{0, phaseWin[1]}, {phaseWin[0], 2 * Math.PI}}
                 : new double[][]{{phaseWin[0], phaseWin[1]}};
-        java.util.ArrayList<int[]> ranges = new java.util.ArrayList<>();
+        ArrayList<int[]> ranges = new ArrayList<>();
         for (double[] seg : segs) {
             double w = seg[1] - seg[0];
             if (w >= 2 * Math.PI - 1e-9) { // 整环在球内
@@ -267,26 +290,33 @@ public final class AsteroidProximity {
     // ---------- 一次性查询 ----------
 
     /**
-     * 一次性近邻查询：P 球内全部小行星 id（精确位置过滤）。
+     * 一次性近邻查询：P 球内全部小行星 id（精确位置过滤），逐带循环。
      * 用于 /asteroid near 命令与独立验证。
      */
     public static Set<Long> nearby(AsteroidUniverse u, double px, double py, double pz,
                                    double radius, long tick) {
         Set<Long> out = new HashSet<>();
         if (radius <= 0) return out;
-        long[] cells = queryCells(u, px, py, pz, radius, 0.15);
         double r2 = radius * radius;
-        for (long cellKey : cells) {
-            double[] el = u.cellElements(cellKey);
-            double n = el[4];
-            double[] win = phaseWindow(u, cellKey, px, py, pz, radius * 1.15);
-            if (win == null) continue;
-            int[] rw = ringIdxWindow(u, win, u.k, n, tick);
-            if (rw[4] == 1) {
-                collectIds(u, cellKey, rw[0], rw[1], px, py, pz, r2, tick, out);
-            } else {
-                collectIds(u, cellKey, rw[0], rw[1], px, py, pz, r2, tick, out);
-                collectIds(u, cellKey, rw[2], rw[3], px, py, pz, r2, tick, out);
+        double rP = Math.sqrt(px * px + py * py + pz * pz);
+        ArrayList<Long> candidates = new ArrayList<>();
+        for (AsteroidUniverse.Belt b : u.belts) {
+            double qMin = b.innerRadius * (1.0 - b.maxEccentricity);
+            double qMax = b.outerRadius * (1.0 + b.maxEccentricity);
+            if (rP + radius < qMin || rP - radius > qMax) continue;
+            candidates.clear();
+            queryCellsForBelt(b, px, py, pz, radius, 0.15, candidates);
+            for (long cellKey : candidates) {
+                double n = u.cellElements(b, cellKey)[4];
+                double[] win = phaseWindow(u, b, cellKey, px, py, pz, radius * 1.15);
+                if (win == null) continue;
+                int[] rw = ringIdxWindow(win, b.k, n, tick);
+                if (rw[4] == 1) {
+                    collectIds(u, cellKey, rw[0], rw[1], px, py, pz, r2, tick, out);
+                } else {
+                    collectIds(u, cellKey, rw[0], rw[1], px, py, pz, r2, tick, out);
+                    collectIds(u, cellKey, rw[2], rw[3], px, py, pz, r2, tick, out);
+                }
             }
         }
         return out;

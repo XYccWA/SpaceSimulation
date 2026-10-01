@@ -65,6 +65,13 @@ config="${mod_id}.mixins.json"
 [[mixins]]
 config="${mod_id}.rapier.mixins.json"
 
+# 内建光影包（世界中心太阳的径向光照与阴影）：接管 Iris 的太阳方向与阴影视图矩阵。
+# Iris 为软依赖：仅当 net.irisshaders.iris.Iris 存在于类路径时才应用
+# （由 org.xyccwa.space_simulation.mixin.iris.IrisMixinPlugin 探测），
+# 未安装 Iris 时该配置整体不生效，模组照常运行。
+[[mixins]]
+config="${mod_id}.iris.mixins.json"
+
 # The [[accessTransformers]] block allows you to declare where your AT file is.
 # If this block is omitted, a fallback attempt will be made to load an AT from META-INF/accesstransformer.cfg
 #[[accessTransformers]]
@@ -116,6 +123,14 @@ config="${mod_id}.rapier.mixins.json"
     versionRange="[2.0.5,)"
     ordering="AFTER"
     side="BOTH"
+
+# Iris 光影（软依赖）：仅当安装 Iris 时，内建光影包才可用。未安装时模组功能完全不受影响。
+[[dependencies.${mod_id}]]
+    modId="iris"
+    type="optional"
+    versionRange="[1.8.0,)"
+    ordering="AFTER"
+    side="CLIENT"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares
 # that your mod requires GL version 3.2 or higher. Other features will be added. They are side aware so declaring this won't

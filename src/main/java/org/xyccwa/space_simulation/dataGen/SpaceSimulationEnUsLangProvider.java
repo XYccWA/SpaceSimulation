@@ -99,8 +99,8 @@ public class SpaceSimulationEnUsLangProvider extends LanguageProvider {
         addDeathMessage("high_g_force.player", "%s was crushed by extreme G-forces while trying to escape %s");
         addDeathMessage("sustained_g_force", "%s succumbed to sustained high G-forces");
         addDeathMessage("sustained_g_force.player", "%s succumbed to sustained high G-forces while fighting %s");
-        addDeathMessage("solar_burn", "%s flew into the sun and was incinerated");
-        addDeathMessage("solar_burn.player", "%s flew into the sun and was incinerated while trying to escape %s");
+        addDeathMessage("solar_heat", "%s was incinerated by the sun's heat");
+        addDeathMessage("solar_heat.player", "%s was incinerated by the sun's heat while trying to escape %s");
 
     }
 

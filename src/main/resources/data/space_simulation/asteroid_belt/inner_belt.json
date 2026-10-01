@@ -1,0 +1,23 @@
+{
+  "name": "内小行星带",
+  "inner_radius": 1000000.0,
+  "outer_radius": 1400000.0,
+  "height": { "type": "altitude", "min": -8000.0, "max": 9000.0 },
+  "density": { "type": "mean_spacing", "blocks_per_asteroid": 1560.0 },
+  "max_eccentricity": 0.35,
+  "types": [
+    { "type": "space_simulation:core_carbonaceous_1", "weight": 3.0 },
+    { "type": "space_simulation:core_carbonaceous_2", "weight": 3.0 },
+    { "type": "space_simulation:core_carbonaceous_3", "weight": 2.0 },
+    { "type": "space_simulation:core_siliceous_1", "weight": 2.0 },
+    { "type": "space_simulation:core_siliceous_2", "weight": 2.0 },
+    { "type": "space_simulation:core_siliceous_3", "weight": 1.0 },
+    { "type": "space_simulation:core_iron_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_copper_asteroid", "weight": 2.0 },
+    { "type": "space_simulation:core_chromite_asteroid", "weight": 1.0 },
+    { "type": "space_simulation:core_titanium_asteroid", "weight": 1.0 },
+    { "type": "space_simulation:core_tungsten_asteroid", "weight": 1.0 },
+    { "type": "space_simulation:core_rhenium_asteroid", "weight": 1.0 },
+    { "type": "space_simulation:core_niobium_tantalum_asteroid", "weight": 1.0 }
+  ]
+}

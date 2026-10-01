@@ -9,6 +9,10 @@
     "entity.LivingEntityAccessor",
     "entity.LivingEntityDeathInvoker",
     "server.fluid.FluidMixin",
+    "lighting.LevelLightEngineMixin",
+    "lighting.ThreadedLevelLightEngineMixin",
+    "lighting.LightEngineMixin",
+    "lighting.ChunkSkyLightSourcesMixin",
     "sable.SubLevelContainerMixin"
   ],
   "injectors": {

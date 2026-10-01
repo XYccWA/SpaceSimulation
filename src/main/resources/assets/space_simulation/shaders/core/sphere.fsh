@@ -1,6 +1,6 @@
 #version 150
 
-// 太阳渲染(世界原点,半径 50000 格)片元着色器 —— 经典黄白球 + 光晕。
+// 太阳渲染(世界原点,半径由 SunRadius 决定)片元着色器 —— 经典黄白球 + 光晕。
 // 逐像素从 NDC 重建视线方向,做光线-球求交:
 //   - 光球层:黄白渐变(中心金黄 -> fresnel 亮白边缘),3D 域噪声颗粒
 //     (无经纬接缝/极点),缓慢自转/沸腾/脉动;
@@ -13,6 +13,8 @@ uniform mat4 InvView;          // 相机 view 的逆,把交点转回世界空间
 uniform vec2 ScreenSize;
 uniform vec3 SphereCenterView; // 球心在 view 空间的坐标(CPU 端计算)
 uniform float SphereRadius;
+uniform float SunRadiusMin;    // 世界可能的最小太阳半径(取自 SunRadius.MIN_RADIUS)
+uniform float SunRadiusMax;    // 世界可能的最大太阳半径(取自 SunRadius.MAX_RADIUS)
 uniform float Time;            // 秒,驱动自转/沸腾/脉动
 
 out vec4 fragColor;
@@ -101,9 +103,11 @@ void main() {
     // 全局缓慢脉动
     float pulse = 1.0 + 0.03 * sin(Time * 0.9) * sin(Time * 0.37 + 1.7);
 
-    // 恒星光谱颜色:随半径变化(与真实恒星一致)
-    // 小(200000)= 红矮星偏红,中(350000)= 太阳金黄,大(500000)= 蓝白巨星
-    float starT = clamp((radius - 200000.0) / 300000.0, 0.0, 1.0);
+    // 恒星光谱颜色:随半径在 [SunRadiusMin, SunRadiusMax] 内归一化变化(与真实恒星一致)
+    // 半径下界 = 红矮星偏红,中值 = 太阳金黄,上界 = 蓝白巨星。
+    // 基准由 CPU 传入(取自 SunRadius.MIN_RADIUS/MAX_RADIUS):改太阳半径区间时
+    // 无需再改本文件,光谱映射自动跟随,不会因区间移动而全部退化成红色。
+    float starT = clamp((radius - SunRadiusMin) / max(SunRadiusMax - SunRadiusMin, 1.0), 0.0, 1.0);
     vec3 redStar = vec3(1.0, 0.55, 0.25);
     vec3 yellowStar = vec3(1.0, 0.94, 0.62);
     vec3 blueStar = vec3(0.82, 0.88, 1.0);

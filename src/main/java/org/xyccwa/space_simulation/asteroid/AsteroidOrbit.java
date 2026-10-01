@@ -38,20 +38,33 @@ public final class AsteroidOrbit {
     /** 引力参数（块³/tick²），全系统统一。 */
     public final double mu;
 
-    /** 小行星类型（实体化预留字段；目前为空字符串占位，后续由确定性派生填充）。 */
+    /** 小行星类型 id（数据包 asteroid_type 的资源位置字符串；未命中类型表时为空串）。 */
     public final String type;
-    /** 小行星类型变体编号（实体化预留字段；目前为 0 占位，后续由确定性派生填充）。 */
+    /** 小行星类型变体序号（在类型定义的 variants 列表中的下标）。 */
     public final int variant;
+    /** 变体的结构模板 id（如 "space_simulation:asteroid/stone_a"；无结构时为空串）。 */
+    public final String structure;
+    /** 所属环带索引（数据包 asteroid_belt 的运行时顺序，内缘半径升序）。 */
+    public final int beltIndex;
+    /** 所属环带显示名。 */
+    public final String beltName;
 
-    /** 8 参构造：不指定实体化字段时使用空值占位（type=""，variant=0）。 */
+    /** 8 参构造：不做类型抽样时使用空值占位（type=""，variant=0，structure=""）。 */
     public AsteroidOrbit(long index, double a, double e, double i, double omega,
                          double argP, double m0, double mu) {
-        this(index, a, e, i, omega, argP, m0, mu, "", 0);
+        this(index, a, e, i, omega, argP, m0, mu, "", 0, "", 0, "");
     }
 
-    /** 完整构造（含实体化预留字段）。 */
+    /** 10 参构造（仅类型/变体，无结构与带信息）。 */
     public AsteroidOrbit(long index, double a, double e, double i, double omega,
                          double argP, double m0, double mu, String type, int variant) {
+        this(index, a, e, i, omega, argP, m0, mu, type, variant, "", 0, "");
+    }
+
+    /** 完整构造（含类型/变体/结构/所属环带）。 */
+    public AsteroidOrbit(long index, double a, double e, double i, double omega,
+                         double argP, double m0, double mu, String type, int variant,
+                         String structure, int beltIndex, String beltName) {
         this.index = index;
         this.a = a;
         this.e = e;
@@ -62,6 +75,9 @@ public final class AsteroidOrbit {
         this.mu = mu;
         this.type = type;
         this.variant = variant;
+        this.structure = structure;
+        this.beltIndex = beltIndex;
+        this.beltName = beltName;
     }
 
     /** 平均角速度 n = √(μ/a³)（弧度/tick）。 */

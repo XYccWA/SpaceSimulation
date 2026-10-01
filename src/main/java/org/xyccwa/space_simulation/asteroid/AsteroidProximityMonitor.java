@@ -34,6 +34,7 @@ public final class AsteroidProximityMonitor {
     // 静态层（当前生效）：真相交环 + 每环每档相位窗口
     private long[] cells = new long[0];
     private double[] cellNs = new double[0];      // [ci] → n
+    private int[] cellKs = new int[0];            // [ci] → 该环所在带的每环颗数 k
     private double[][][] cellBandWins = new double[0][][]; // [ci][band] → phaseWin（null=该档不相交）
 
     // 分帧重建状态
@@ -41,6 +42,7 @@ public final class AsteroidProximityMonitor {
     private int frameCursor = 0;
     private long[] newCells = new long[0];
     private double[] newNs = new double[0];
+    private int[] newKs = new int[0];
     private double[][][] newBandWins = new double[0][][];
     private boolean firstAfterRebuild = false;
     /** 每帧精测的候选数。 */
@@ -141,7 +143,7 @@ public final class AsteroidProximityMonitor {
             long cellKey = cells[ci];
             double n = cellNs[ci];
             if (preTick) {
-                int[] win0 = AsteroidProximity.ringIdxWindow(u, cellBandWins[ci][0], u.k, n, tick);
+                int[] win0 = AsteroidProximity.ringIdxWindow(cellBandWins[ci][0], cellKs[ci], n, tick);
                 int[] r0 = curRanges[ci];
                 r0[0] = win0[0]; r0[1] = win0[1]; r0[2] = win0[2]; r0[3] = win0[3]; r0[4] = win0[4];
             }
@@ -149,7 +151,7 @@ public final class AsteroidProximityMonitor {
             for (int b = 1; b < radii.length; b++) {
                 double[] win = cellBandWins[ci][b];
                 if (win == null) continue; // 本档不相交
-                int[] rw = AsteroidProximity.ringIdxWindow(u, win, u.k, n, tick);
+                int[] rw = AsteroidProximity.ringIdxWindow(win, cellKs[ci], n, tick);
                 if (rw[4] == 0) continue;
                 collectBand(cellKey, rw[0], rw[1], tick, r2s, b);
                 if (rw[4] == 2) collectBand(cellKey, rw[2], rw[3], tick, r2s, b);
@@ -244,6 +246,7 @@ public final class AsteroidProximityMonitor {
         double maxR = maxRadius();
         newCells = AsteroidProximity.queryCells(u, px, py, pz, maxR, 0.15);
         newNs = new double[newCells.length];
+        newKs = new int[newCells.length];
         newBandWins = new double[newCells.length][radii.length][];
         frameCursor = 0;
         building = true;
@@ -253,10 +256,13 @@ public final class AsteroidProximityMonitor {
     private void stepRebuild() {
         int end = Math.min(newCells.length, frameCursor + FRAME);
         for (int i = frameCursor; i < end; i++) {
-            double[] el = u.cellElements(newCells[i]);
+            int bi = u.beltIndexOfCell(newCells[i]);
+            AsteroidUniverse.Belt belt = u.belts[bi];
+            newKs[i] = belt.k;
+            double[] el = u.cellElements(belt, newCells[i]);
             newNs[i] = el[4];
             for (int b = 0; b < radii.length; b++) {
-                newBandWins[i][b] = AsteroidProximity.phaseWindow(u, newCells[i], cx, cy, cz, radii[b] * 1.15);
+                newBandWins[i][b] = AsteroidProximity.phaseWindow(u, belt, newCells[i], cx, cy, cz, radii[b] * 1.15);
             }
         }
         frameCursor = end;
@@ -266,17 +272,20 @@ public final class AsteroidProximityMonitor {
             for (int i = 0; i < newCells.length; i++) if (newBandWins[i][0] != null) n++;
             long[] c2 = new long[n];
             double[] n2 = new double[n];
+            int[] k2 = new int[n];
             double[][][] w2 = new double[n][][];
             int k = 0;
             for (int i = 0; i < newCells.length; i++) {
                 if (newBandWins[i][0] == null) continue;
                 c2[k] = newCells[i];
                 n2[k] = newNs[i];
+                k2[k] = newKs[i];
                 w2[k] = newBandWins[i];
                 k++;
             }
             cells = c2;
             cellNs = n2;
+            cellKs = k2;
             cellBandWins = w2;
             curRanges = new int[cells.length][];
             prevRanges = new int[cells.length][];

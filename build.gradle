@@ -45,6 +45,10 @@ repositories {
         name = 'BlameJared Maven (CrT / Bookshelf)'
         url = 'https://maven.blamejared.com'
     }
+    maven {
+        name "caffeinemcRepositoryReleases"
+        url "https://maven.caffeinemc.net/releases"
+    }
     maven { url = "https://maven.aliyun.com/repository/public" }
     maven { url = "https://maven.createmod.net" } // Create, Ponder, Flywheel
     maven { url = "https://maven.ithundxr.dev/snapshots" } // Registrate
@@ -156,6 +160,25 @@ dependencies {
     localImplementation("dev.ryanhcode.offroad:offroad-neoforge-${minecraft_version}:${create_aeronautics_version}")  { transitive false }
 
     runtimeOnly "maven.modrinth:c2me-neoforge:0.4.0-alpha.0.120+1.21.1"
+
+    // CaffeineMC 官方 NeoForge 渲染依赖。Sodium 0.8 为拆包发布：
+    //   sodium-neoforge-mod = 核心（mods.toml + mixin 配置 + 渲染引擎 + 全部 api 类）
+    //   sodium-neoforge     = 外壳（compatibility/platform/desktop 类 + JarJar 内嵌核心）
+    // dev/runClient 下 JarJar 不会展开内嵌核心，而核心的 mixin 会引用外壳中的
+    // compatibility 类（如 Workarounds$Reference），故二者都必须在运行时类路径上。
+    // 外壳与核心同 modId=sodium，作为 mod 会冲突，因此外壳只进类路径、不参与 mod 发现。
+    // 另：Sable 2.0.5 声明 sodium < 0.8.12-alpha.2 为 incompatible，必须用 0.8.x。
+    runtimeOnly "net.caffeinemc:sodium-neoforge-mod:${sodium_version}"
+    // transitive=false：外壳的 fabric-api 传递依赖运行时已由其它 mod 提供（版本亦不同），
+    // 这里只需要外壳 jar 自身的 compatibility/platform 类。
+    additionalRuntimeClasspath("net.caffeinemc:sodium-neoforge:${sodium_version}") { transitive = false }
+    runtimeOnly "maven.modrinth:iris:${iris_version}"
+    // Iris = 可选软依赖：内建光影包需要 mixin 接管 Iris 的太阳方向与阴影视图矩阵，
+    // 因此编译期必须能看到 Iris 类；运行时由 MixinConfigPlugin 探测，未安装 Iris 时
+    // 整个 space_simulation.iris.mixins.json 不应用，模组照常运行。
+    compileOnly "maven.modrinth:iris:${iris_version}"
+    // Sodium Config API（注册自己的视频设置页）：仅编译期引用接口，运行时类由核心提供。
+    compileOnly "net.caffeinemc:sodium-neoforge-api:${sodium_version}"
 
     implementation "curse.maven:xaeros-minimap-263420:8046966"
     implementation "curse.maven:xaeros-world-map-317780:8042208"

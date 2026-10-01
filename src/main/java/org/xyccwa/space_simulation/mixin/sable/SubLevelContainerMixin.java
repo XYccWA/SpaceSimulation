@@ -16,13 +16,15 @@ import org.xyccwa.space_simulation.sable.PlotYardPlacement.Placement;
  *
  * 注入点：{@link SubLevelContainer} 构造器 TAIL（super() 之后、子类构造器体之前），
  * 直接覆盖 {@code logSideLength}/{@code originX}/{@code originZ} 三个 final 字段，使：
- * - 网格中心落在世界原点，整个网格（半对角线 185,364 块 ≤ 200,000 设计最小太阳）完全位于太阳内；
- * - 坐标量级从 2048 万块降到 ≤ 13.1 万块，rapier f32 的 ULP 从 2 块降到 ≈ 0.004 块；
+ * - 网格紧贴世界原点旁（origin=1 plot，(0,0,0) 不在网格内），整个网格（最远角点 49,238 块
+ *   ≤ 50,000 = 世界最小太阳半径）完全位于太阳内；
+ * - 坐标量级从 2048 万块降到 ≤ 34,816 块，rapier f32 的 ULP 从 2 块降到 ≈ 0.0039 块；
  * - 子层级逻辑位置/玩家交互/存档不受影响（logicalPose 编码映射与 plotyard 绝对位置解耦）。
  *
  * 说明：
  * - {@code subLevels} 数组按构造参数分配（偏大无害：逻辑索引按字段 logSideLength 计算，不越界）；
- * - 太阳禁用或设计半径过小（无法放入单 plot）时保持原参数（applied=false），维持 sable 默认行为；
+ * - 网格尺寸由 PlotYardPlacement 保证不超过世界最小太阳半径，因此任何世界都不会越出太阳面；
+ *   仅当太阳最小半径本身容不下最小网格时保持原参数（applied=false），维持 sable 默认行为；
  * - 仅当 sable 加载时本 mixin 生效（sable 未安装时目标类不存在，mixin 整体跳过）。
  */
 @Mixin(SubLevelContainer.class)
