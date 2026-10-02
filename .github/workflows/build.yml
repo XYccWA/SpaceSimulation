@@ -86,12 +86,18 @@ jobs:
         run: ls -l build/libs/
 
       # 8. 从 tag 注释提取 Release 正文（正文里写更新/修复内容）
-      #    推荐做法：打 tag 时用 -m 写入发布说明，Release 正文就会带上这些内容。
-      #    例如：git tag -a v0.2.0-alpha -m "v0.2.0-alpha" -m "## 更新内容 ..."
+      #    推荐做法：打 tag 时用 -a -F <文件>（并加 --cleanup=verbatim，否则以 # 开头的
+      #    Markdown 标题行会被 git 当注释清理掉）。
+      #    注意：actions/checkout 检出的是 tag 指向的提交，本地通常没有该 tag ref，
+      #    直接 git tag -l 会输出空、正文静默回退为自动生成 —— 所以这里必须显式 fetch 一次 tag。
       - name: Prepare release notes
         id: prepare_notes
         run: |
-          git tag -l "${{ github.ref_name }}" --format='%(contents:body)' > RELEASE_NOTES.md
+          TAG="${GITHUB_REF_NAME}"
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}" || true
+          git tag -l "$TAG" --format='%(contents:body)' > RELEASE_NOTES.md
+          echo "--- RELEASE_NOTES.md ($(wc -c < RELEASE_NOTES.md) bytes) ---"
+          head -n 5 RELEASE_NOTES.md
           if [ -s RELEASE_NOTES.md ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "已从 tag 注释读取到发布说明"
