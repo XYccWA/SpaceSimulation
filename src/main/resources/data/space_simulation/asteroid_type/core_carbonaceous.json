@@ -1,0 +1,35 @@
+{
+  "name": "碳质小行星（C 型）",
+  "variants": [
+    {
+      "name": "碳质·碎块",
+      "structure": "space_simulation:core_carbonaceous_1",
+      "weight": 1.0
+    },
+    {
+      "name": "碳质·椭球",
+      "structure": "space_simulation:core_carbonaceous_2",
+      "weight": 1.0
+    },
+    {
+      "name": "碳质·团块",
+      "structure": "space_simulation:core_carbonaceous_3",
+      "weight": 1.0
+    },
+    {
+      "name": "碳质·多孔",
+      "structure": "space_simulation:core_carbonaceous_4",
+      "weight": 1.0
+    },
+    {
+      "name": "碳质·致密",
+      "structure": "space_simulation:core_carbonaceous_5",
+      "weight": 1.0
+    },
+    {
+      "name": "碳质·不规则",
+      "structure": "space_simulation:core_carbonaceous_6",
+      "weight": 1.0
+    }
+  ]
+}

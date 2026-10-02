@@ -1,0 +1,35 @@
+{
+  "name": "硅酸盐小行星（S 型）",
+  "variants": [
+    {
+      "name": "硅酸盐·碎块",
+      "structure": "space_simulation:core_silicate_1",
+      "weight": 1.0
+    },
+    {
+      "name": "硅酸盐·椭球",
+      "structure": "space_simulation:core_silicate_2",
+      "weight": 1.0
+    },
+    {
+      "name": "硅酸盐·团块",
+      "structure": "space_simulation:core_silicate_3",
+      "weight": 1.0
+    },
+    {
+      "name": "硅酸盐·多孔",
+      "structure": "space_simulation:core_silicate_4",
+      "weight": 1.0
+    },
+    {
+      "name": "硅酸盐·致密",
+      "structure": "space_simulation:core_silicate_5",
+      "weight": 1.0
+    },
+    {
+      "name": "硅酸盐·不规则",
+      "structure": "space_simulation:core_silicate_6",
+      "weight": 1.0
+    }
+  ]
+}

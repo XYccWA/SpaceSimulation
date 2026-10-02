@@ -9,10 +9,15 @@ import org.joml.Quaternionf;
 import org.xyccwa.space_simulation.SpaceSimulation;
 
 /**
- * 客户端 -> 服务器，每 tick 发送玩家朝向四元数、移动输入掩码，以及本地算好的运动指标。
- * 服务器据此同步朝向，并据运动指标判加速度/撞击伤害（客户端本地速度权威，无移动包相位噪声）。
+ * 客户端 -> 服务器，每 tick 发送玩家朝向四元数、移动输入掩码、本地算好的运动指标，
+ * 以及本 tick 的输入序号 seq。
+ *
+ * seq 是客户端"本地物理 tick"的递增计数：服务器用它积分，并把结果原样回传，
+ * 客户端据此在本地预测历史里找到对应时刻的状态做比对/回滚重放（服务器权威）。
+ * smoothedAccel/impactDeltaV 由客户端本地速度差分得到，服务器据此判加速度/撞击伤害。
  */
-public record PlayerControlPayload(Quaternionf orientation, int moveMask, float smoothedAccelMPS2, float impactDeltaVBlocksPerTick) implements CustomPacketPayload {
+public record PlayerControlPayload(Quaternionf orientation, int moveMask, float smoothedAccelMPS2,
+                                   float impactDeltaVBlocksPerTick, int seq) implements CustomPacketPayload {
     public static final Type<PlayerControlPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(SpaceSimulation.MOD_ID, "player_control"));
 
@@ -21,6 +26,7 @@ public record PlayerControlPayload(Quaternionf orientation, int moveMask, float 
             ByteBufCodecs.VAR_INT, PlayerControlPayload::moveMask,
             ByteBufCodecs.FLOAT, PlayerControlPayload::smoothedAccelMPS2,
             ByteBufCodecs.FLOAT, PlayerControlPayload::impactDeltaVBlocksPerTick,
+            ByteBufCodecs.VAR_INT, PlayerControlPayload::seq,
             PlayerControlPayload::new);
 
     @Override

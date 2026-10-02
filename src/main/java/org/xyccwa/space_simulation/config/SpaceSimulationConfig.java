@@ -17,6 +17,7 @@ public class SpaceSimulationConfig {
 
     public static final ModConfigSpec.LongValue asteroidSeed;
     public static final ModConfigSpec.LongValue asteroidInnerOrbitPeriodTicks;
+    public static final ModConfigSpec.BooleanValue asteroidMuFollowPlayerOrbital;
     public static final ModConfigSpec.DoubleValue asteroidMaxAbsY;
     public static final ModConfigSpec.BooleanValue asteroidEntityifyEnabled;
     public static final ModConfigSpec.DoubleValue asteroidEntityifyRadius;
@@ -28,8 +29,20 @@ public class SpaceSimulationConfig {
 
     public static final ModConfigSpec.BooleanValue fullBrightness;
 
+    public static final ModConfigSpec.BooleanValue orbitalMechanicsEnabled;
+    public static final ModConfigSpec.DoubleValue orbitalMu;
+    public static final ModConfigSpec.DoubleValue orbitalCorrectionBlocks;
+    public static final ModConfigSpec.BooleanValue orbitalSpawnEnabled;
+    public static final ModConfigSpec.DoubleValue orbitalSpawnRadiusMin;
+    public static final ModConfigSpec.DoubleValue orbitalSpawnRadiusMax;
+    public static final ModConfigSpec.DoubleValue orbitalSpawnMaxAbsY;
+    public static final ModConfigSpec.DoubleValue orbitalSpawnMaxEccentricity;
+    public static final ModConfigSpec.BooleanValue orbitalSpawnOnRespawn;
+
     public static final ModConfigSpec.BooleanValue builtInShaderPack;
     public static final ModConfigSpec.BooleanValue autoEnableShaderPack;
+
+    public static final ModConfigSpec.BooleanValue perfStatsEnabled;
 
 
     static {
@@ -63,6 +76,68 @@ public class SpaceSimulationConfig {
                             "Only applies when no other shader pack is currently selected, so an existing choice " +
                             "is never overwritten. Requires builtInShaderPack = true.")
                     .define("autoEnableShaderPack", true);
+
+        builder.pop();
+
+        builder.push("Orbital Mechanics");
+
+            orbitalMechanicsEnabled = builder.comment(
+                            "Give players (and every other entity) real orbital mechanics: a Newtonian inverse-square " +
+                            "gravity field centred on the sun at the world origin, integrated numerically each tick. " +
+                            "Both client and server run the same integrator; the server is authoritative and corrects " +
+                            "the client when its prediction drifts. Set to false to restore the old gravity-free " +
+                            "Newtonian flight (client-authoritative, straight lines).")
+                    .define("orbitalMechanicsEnabled", true);
+
+            orbitalMu = builder.comment(
+                            "Gravitational parameter mu = G*M of the sun, in blocks^3/tick^2 (1 block = 1 m, 1 tick = 1/20 s). " +
+                            "Circular orbital speed at radius r is sqrt(mu/r) blocks/tick (x20 for m/s) and the period is " +
+                            "2*PI*sqrt(r^3/mu) ticks. With the default 6.25e6: circular speed is 2.5 blocks/tick (50 m/s) " +
+                            "at r = 1,000,000 blocks (the inner belt's inner edge, i.e. the low end of the initial-orbit " +
+                            "band), 1.12 blocks/tick at 5,000,000 blocks, and 11.2 blocks/tick (224 m/s) at the sun's " +
+                            "surface (50k blocks). " +
+                            "This field is independent of the asteroid belts' prescribed Kepler orbits unless " +
+                            "asteroidMuFollowPlayerOrbital makes them follow it; it drives dynamically integrated bodies " +
+                            "(players and entities). 0 disables gravity.")
+                    .defineInRange("orbitalMu", 6.25e6, 0.0, 1.0e15);
+
+            orbitalCorrectionBlocks = builder.comment(
+                            "Client-side prediction threshold (blocks): when the authoritative server state differs from " +
+                            "the client's recorded prediction for that input sequence by more than this, the client rewinds " +
+                            "and replays. Smaller = tighter server authority, more rubber-banding on bad connections.")
+                    .defineInRange("orbitalCorrectionBlocks", 1.0, 0.05, 64.0);
+
+            orbitalSpawnEnabled = builder.comment(
+                            "First time a player enters the world, put them into a randomly generated circular-ish orbit " +
+                            "inside the configured band instead of leaving them standing at the vanilla spawn point. " +
+                            "The elements are stored in the player's NBT, so later logins resume the same orbit (propagated " +
+                            "analytically while they were offline).")
+                    .define("orbitalSpawnEnabled", true);
+
+            orbitalSpawnRadiusMin = builder.comment(
+                            "Inner bound (blocks from the sun) of the initial orbit. Default 1,000,000 = the inner edge of " +
+                            "the inner asteroid belt, where a circular orbit runs at 2.5 blocks/tick (50 m/s).")
+                    .defineInRange("orbitalSpawnRadiusMin", 1_000_000.0, 1_000.0, 1.0e9);
+
+            orbitalSpawnRadiusMax = builder.comment(
+                            "Outer bound (blocks from the sun) of the initial orbit. Must be >= orbitalSpawnRadiusMin.")
+                    .defineInRange("orbitalSpawnRadiusMax", 1_500_000.0, 1_000.0, 1.0e9);
+
+            orbitalSpawnMaxAbsY = builder.comment(
+                            "Maximum |Y| (blocks) the initial orbit may reach. The inclination is derived from it per " +
+                            "player (i_max = asin(maxAbsY / apoapsis)), so the start orbit stays inside the same thin disc " +
+                            "as the asteroid belts (datapack altitude +/-8000..9000) instead of climbing hundreds of " +
+                            "thousands of blocks above the world height where there is nothing to see.")
+                    .defineInRange("orbitalSpawnMaxAbsY", 8_000.0, 0.0, 1.0e6);
+
+            orbitalSpawnMaxEccentricity = builder.comment(
+                            "Maximum eccentricity of the initial orbit (0 = perfectly circular, 0.15 = apsides differ by 15%).")
+                    .defineInRange("orbitalSpawnMaxEccentricity", 0.15, 0.0, 0.9);
+
+            orbitalSpawnOnRespawn = builder.comment(
+                            "Also assign a fresh orbit when a player respawns after death, instead of dropping them back at " +
+                            "the (shared) world spawn point in the void.")
+                    .define("orbitalSpawnOnRespawn", true);
 
         builder.pop();
 
@@ -131,8 +206,18 @@ public class SpaceSimulationConfig {
                     "Orbital period at the innermost belt's inner radius in game ticks (20 ticks = 1 second). " +
                             "The system-wide gravitational parameter mu is derived from this by Kepler's third law: " +
                             "mu = (2*PI/T)^2 * innerRadius^3, so orbits follow T = 2*PI*sqrt(a^3/mu). " +
-                            "A belt may override its own inner_orbit_period_ticks in the datapack.")
+                            "A belt may override its own inner_orbit_period_ticks in the datapack. " +
+                            "Only used when asteroidMuFollowPlayerOrbital = false.")
                     .defineInRange("asteroidInnerOrbitPeriodTicks", 62_830_000L, 1L, Long.MAX_VALUE);
+
+            asteroidMuFollowPlayerOrbital = builder.comment(
+                    "Use the player's gravity parameter (orbitalMu) for asteroid orbits, so asteroids share the same " +
+                            "gravity field and speed scale as the player's own orbit — without this, asteroid orbits " +
+                            "kept their own, far slower mu (derived from asteroidInnerOrbitPeriodTicks) and flying " +
+                            "alongside one was impossible. " +
+                            "When true, asteroidInnerOrbitPeriodTicks and any belt-level inner_orbit_period_ticks are " +
+                            "ignored (a warning is logged for belt overrides). Set to false to restore the independent mu.")
+                    .define("asteroidMuFollowPlayerOrbital", true);
 
             asteroidMaxAbsY = builder.comment(
                     "Maximum |Y| (blocks) an asteroid orbit may reach — a hard constraint of materialisation. " +
@@ -157,17 +242,17 @@ public class SpaceSimulationConfig {
                             "This is a second filter on top of the loader's strong-load radius (2000 blocks, which decides " +
                             "which asteroids are candidates at all): only asteroids within min(strong-load radius, this value) " +
                             "are materialised, nearest first.")
-                    .defineInRange("asteroidEntityifyRadius", 1_500.0, 16.0, 20_000.0);
+                    .defineInRange("asteroidEntityifyRadius", 2_000.0, 16.0, 20_000.0);
 
             asteroidEntityifyMaxLoaded = builder.comment(
                     "Hard cap on the number of simultaneously materialised asteroid sub-levels (each one holds a " +
                             "Sable plot with a full structure inside).")
-                    .defineInRange("asteroidEntityifyMaxLoaded", 8, 1, 512);
+                    .defineInRange("asteroidEntityifyMaxLoaded", 16, 1, 512);
 
             asteroidEntityifyLoadIntervalTicks = builder.comment(
                     "Throttle: ticks between two materialisation rounds. Materialising one asteroid costs tens to hundreds " +
                             "of milliseconds on the server thread, so rounds are spaced out.")
-                    .defineInRange("asteroidEntityifyLoadIntervalTicks", 100, 1, 1200);
+                    .defineInRange("asteroidEntityifyLoadIntervalTicks", 40, 1, 1200);
 
             asteroidEntityifyLoadsPerRound = builder.comment(
                     "How many asteroids may be materialised in a single round (see load interval).")
@@ -181,6 +266,18 @@ public class SpaceSimulationConfig {
             asteroidSpinDegPerSecond = builder.comment(
                     "Asteroid self-rotation in degrees per second (20 ticks = 1 second). 0 disables the spin.")
                     .defineInRange("asteroidSpinDegPerSecond", 3.0, 0.0, 3600.0);
+
+        builder.pop();
+
+        builder.push("Diagnostics");
+
+            perfStatsEnabled = builder.comment(
+                            "Log one line of server performance stats every 1200 ticks (60 seconds): server tick time " +
+                            "average/maximum, TPS, overworld entity count, loaded chunk count, active asteroid count and " +
+                            "heap usage. Needed to quantify stutter that never reaches the vanilla \"Can't keep up\" " +
+                            "threshold (2 s behind) and never trips the client frame profiler (100 ms), which leaves no " +
+                            "evidence in the log at all. Set to false to silence it.")
+                    .define("perfStatsEnabled", true);
 
         builder.pop();
 

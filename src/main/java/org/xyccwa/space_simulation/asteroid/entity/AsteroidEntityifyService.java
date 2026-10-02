@@ -165,6 +165,8 @@ public final class AsteroidEntityifyService {
                 AsteroidEntityifier.dematerialize(level, inst.id);
                 st.lastSeenStrong.remove(inst.id);
                 unloaded++;
+                SpaceSimulation.LOGGER.info("[Entityify] id={} 离开强载范围，卸载（存活 {} tick）",
+                        inst.id, tick - inst.spawnedTick);
             }
         }
         st.totalUnloaded += unloaded;

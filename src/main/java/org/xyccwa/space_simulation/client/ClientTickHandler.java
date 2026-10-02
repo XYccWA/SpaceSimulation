@@ -30,6 +30,11 @@ public class ClientTickHandler {
     /** 原版按键重绑定只执行一次。 */
     private static boolean keysConfigured = false;
 
+    static {
+        // 把客户端本地预测注入通用侧的分侧钩子（专用服务端上本类不会被加载）
+        org.xyccwa.space_simulation.orbital.OrbitalSideHooks.setClientTicker(PlayerOrbitClient::tick);
+    }
+
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
@@ -43,7 +48,8 @@ public class ClientTickHandler {
         PlayerAcceleration.updatePlayer(mc.player);
         PacketDistributor.sendToServer(new PlayerControlPayload(rot.getOrientation(), rot.getMoveMask(),
                 (float) PlayerAcceleration.getSmoothedAcceleration(mc.player),
-                (float) PlayerAcceleration.getImpactDeltaV(mc.player)));
+                (float) PlayerAcceleration.getImpactDeltaV(mc.player),
+                PlayerOrbitClient.lastSeq()));
     }
 
     /**

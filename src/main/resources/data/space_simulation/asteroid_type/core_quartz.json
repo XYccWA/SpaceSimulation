@@ -1,0 +1,35 @@
+{
+  "name": "石英质小行星",
+  "variants": [
+    {
+      "name": "石英·碎块",
+      "structure": "space_simulation:core_quartz_1",
+      "weight": 1.0
+    },
+    {
+      "name": "石英·椭球",
+      "structure": "space_simulation:core_quartz_2",
+      "weight": 1.0
+    },
+    {
+      "name": "石英·团块",
+      "structure": "space_simulation:core_quartz_3",
+      "weight": 1.0
+    },
+    {
+      "name": "石英·多孔",
+      "structure": "space_simulation:core_quartz_4",
+      "weight": 1.0
+    },
+    {
+      "name": "石英·致密",
+      "structure": "space_simulation:core_quartz_5",
+      "weight": 1.0
+    },
+    {
+      "name": "石英·不规则",
+      "structure": "space_simulation:core_quartz_6",
+      "weight": 1.0
+    }
+  ]
+}

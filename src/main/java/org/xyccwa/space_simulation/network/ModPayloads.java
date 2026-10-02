@@ -11,6 +11,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import org.xyccwa.space_simulation.SpaceSimulation;
 import org.xyccwa.space_simulation.api.EntityRotation;
 import org.xyccwa.space_simulation.damage.PlayerAccelerationDamage;
+import org.xyccwa.space_simulation.orbital.PlayerOrbitServer;
 
 /** 自定义包注册与处理。 */
 public final class ModPayloads {
@@ -32,6 +33,8 @@ public final class ModPayloads {
                 // 客户端本地权威速度差分出的运动指标 → 服务器据此判加速度/撞击伤害
                 if (player instanceof ServerPlayer sp) {
                     PlayerAccelerationDamage.reportMotion(sp, payload.smoothedAccelMPS2(), payload.impactDeltaVBlocksPerTick());
+                    // 服务器权威轨道物理：记下本 tick 的输入与序号（服务器自己积分，位置不再信客户端）
+                    PlayerOrbitServer.onControlPacket(sp, payload.moveMask(), payload.seq());
                     // 广播该玩家的朝向给所有追踪者（不含自己：本地玩家朝向由本地模拟维护，
                     // 回显会覆盖本地实时四元数导致插值回跳）
                     PacketDistributor.sendToPlayersTrackingEntity(sp,
@@ -58,5 +61,14 @@ public final class ModPayloads {
         registrar.playToClient(SunRadiusPayload.TYPE, SunRadiusPayload.STREAM_CODEC, (payload, ctx) ->
                 ctx.enqueueWork(() -> org.xyccwa.space_simulation.client.WorldSphereRenderer
                         .setSyncedRadius(payload.radius())));
+
+        // 服务器 -> 客户端：轨道力学参数（客户端预测必须与服务器用同一个 μ）
+        registrar.playToClient(OrbitalParamsPayload.TYPE, OrbitalParamsPayload.STREAM_CODEC, (payload, ctx) ->
+                ctx.enqueueWork(() -> org.xyccwa.space_simulation.orbital.Gravity
+                        .setMu(payload.enabled() ? payload.mu() : 0.0)));
+
+        // 服务器 -> 客户端：本玩家的权威运动状态（位置 + 速度 + 输入序号），客户端据此对账
+        registrar.playToClient(PlayerOrbitStatePayload.TYPE, PlayerOrbitStatePayload.STREAM_CODEC, (payload, ctx) ->
+                ctx.enqueueWork(() -> org.xyccwa.space_simulation.client.PlayerOrbitClient.onServerState(payload)));
     }
 }

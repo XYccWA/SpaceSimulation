@@ -103,10 +103,11 @@ public final class AsteroidCommand {
                 c.beltFileCount, c.typeFileCount, c.errors.size()));
         for (AsteroidUniverse.Belt b : u.belts) {
             send(source, String.format(Locale.ROOT,
-                    "    [%d] %s  %.0f ~ %.0f 块 · 倾角 %.2f°~%.2f° · e≤%.3f · a档 %d · 每环 %,d 颗 · 共 %,d 颗",
+                    "    [%d] %s  %.0f ~ %.0f 块 · 倾角 %.2f°~%.2f° · e≤%.3f · a档 %d · 每环 %,d 颗 · 共 %,d 颗 · 内缘 v≈%.2f 块/tick（%.1f 块/秒）",
                     b.index, b.name, b.innerRadius, b.outerRadius,
                     Math.toDegrees(b.minInclinationRad), Math.toDegrees(b.maxInclinationRad),
-                    b.maxEccentricity, b.aBins, b.k, b.totalCount));
+                    b.maxEccentricity, b.aBins, b.k, b.totalCount,
+                    Math.sqrt(b.mu / b.innerRadius), Math.sqrt(b.mu / b.innerRadius) * 20.0));
         }
         send(source, String.format(Locale.ROOT, "  类型: %d 种（数据包 asteroid_type）", u.types.size));
         for (int i = 0; i < u.types.size; i++) {
@@ -114,8 +115,11 @@ public final class AsteroidCommand {
                     u.types.ids[i], u.types.names[i], u.types.variantStructures[i].length));
         }
         send(source, String.format(Locale.ROOT, "  种子: %,d", u.seed));
-        send(source, String.format(Locale.ROOT, "  引力参数 μ = %.4e 块³/tick²（全局内缘周期 %,d tick 反推）",
-                u.mu, u.globalInnerOrbitPeriodTicks));
+        send(source, String.format(Locale.ROOT, "  引力参数 μ = %.4e 块³/tick²（%s；折算最内带内缘周期 %,d tick）",
+                u.mu,
+                org.xyccwa.space_simulation.config.SpaceSimulationConfig.asteroidMuFollowPlayerOrbital.get()
+                        ? "跟随玩家 orbitalMu" : "独立周期 asteroidInnerOrbitPeriodTicks",
+                u.globalInnerOrbitPeriodTicks));
         send(source, String.format(Locale.ROOT, "  档粒度设计基准: 预加载半径 %.0f 块（每带 a 档按跨度/2R 取整）",
                 AsteroidUniverse.PROBE_RADIUS));
         send(source, "  轨道运动: 开普勒三定律（T = 2π√(a³/μ)，E − e·sinE = M）。中心天体 = 世界原点（太阳）。");

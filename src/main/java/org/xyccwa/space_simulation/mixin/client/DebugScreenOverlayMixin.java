@@ -9,6 +9,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.xyccwa.space_simulation.client.PlayerOrbitClient;
+import org.xyccwa.space_simulation.orbital.Gravity;
+import org.xyccwa.space_simulation.orbital.TwoBody;
 import org.xyccwa.space_simulation.player.PlayerAcceleration;
 
 import java.util.List;
@@ -48,7 +51,32 @@ public class DebugScreenOverlayMixin {
             info.add(insertIndex++, "");
             info.add(insertIndex++, "§6=== Space Simulation ===");
             info.add(insertIndex++, String.format("§eSpeed: §f%.2f m/s", speed));
-            info.add(insertIndex, String.format("§eAcceleration: §f%.2f m/s²", acceleration));
+            info.add(insertIndex++, String.format("§eAcceleration: §f%.2f m/s²", acceleration));
+
+            // 轨道力学：μ、半径、轨道根数与预测修正次数
+            double mu = Gravity.mu();
+            if (mu > 0.0) {
+                double x = player.getX(), y = player.getY(), z = player.getZ();
+                double vx = player.getDeltaMovement().x, vy = player.getDeltaMovement().y, vz = player.getDeltaMovement().z;
+                double radius = Math.sqrt(x * x + y * y + z * z);
+                double vspeed = Math.sqrt(vx * vx + vy * vy + vz * vz);
+                info.add(insertIndex++, String.format("§eOrbit: §fμ=%.3e  r=%.0f  |v|=%.4f (v_circ=%.4f)",
+                        mu, radius, vspeed, Math.sqrt(mu / Math.max(1.0, radius))));
+                TwoBody.Elements el = TwoBody.fromState(
+                        new double[]{x, y, z, }, new double[]{vx, vy, vz}, mu);
+                if (el.valid) {
+                    if (el.hyperbolic) {
+                        info.add(insertIndex++, String.format("§eEllipse: §fhyperbolic  a=%.0f  e=%.4f  i=%.2f°",
+                                el.a, el.e, Math.toDegrees(el.inclination)));
+                    } else {
+                        info.add(insertIndex++, String.format("§eOrbit: §fa=%.0f  e=%.4f  i=%.2f°  T=%.0f tick",
+                                el.a, el.e, Math.toDegrees(el.inclination), el.periodTicks(mu)));
+                    }
+                }
+                info.add(insertIndex, String.format("§eServer corrections: §f%d (offset %+d, last %.2f m)",
+                        PlayerOrbitClient.corrections(), PlayerOrbitClient.lastMatchOffset(),
+                        PlayerOrbitClient.lastCorrectionError()));
+            }
         }
     }
 }

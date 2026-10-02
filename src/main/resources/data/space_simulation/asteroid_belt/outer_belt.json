@@ -2,19 +2,60 @@
   "name": "外小行星带",
   "inner_radius": 1600000.0,
   "outer_radius": 2000000.0,
-  "height": { "type": "altitude", "min": -8000.0, "max": 9000.0 },
-  "density": { "type": "total", "count": 17000000 },
+  "height": {
+    "type": "altitude",
+    "min": -8000.0,
+    "max": 9000.0
+  },
+  "density": {
+    "type": "total",
+    "count": 17000000
+  },
   "max_eccentricity": 0.25,
   "types": [
-    { "type": "space_simulation:core_carbonaceous_3", "weight": 1.0 },
-    { "type": "space_simulation:core_siliceous_2", "weight": 1.0 },
-    { "type": "space_simulation:core_siliceous_3", "weight": 2.0 },
-    { "type": "space_simulation:core_iron_asteroid", "weight": 3.0 },
-    { "type": "space_simulation:core_copper_asteroid", "weight": 2.0 },
-    { "type": "space_simulation:core_chromite_asteroid", "weight": 2.0 },
-    { "type": "space_simulation:core_titanium_asteroid", "weight": 3.0 },
-    { "type": "space_simulation:core_tungsten_asteroid", "weight": 2.0 },
-    { "type": "space_simulation:core_rhenium_asteroid", "weight": 2.0 },
-    { "type": "space_simulation:core_niobium_tantalum_asteroid", "weight": 2.0 }
+    {
+      "type": "space_simulation:core_iron",
+      "weight": 3.0
+    },
+    {
+      "type": "space_simulation:core_magnetite",
+      "weight": 2.0
+    },
+    {
+      "type": "space_simulation:core_chromite",
+      "weight": 2.0
+    },
+    {
+      "type": "space_simulation:core_copper",
+      "weight": 2.0
+    },
+    {
+      "type": "space_simulation:core_titanium",
+      "weight": 2.5
+    },
+    {
+      "type": "space_simulation:core_tungsten",
+      "weight": 2.0
+    },
+    {
+      "type": "space_simulation:core_rhenium",
+      "weight": 1.5
+    },
+    {
+      "type": "space_simulation:core_niobium_tantalum",
+      "weight": 1.5
+    },
+    {
+      "type": "space_simulation:core_silicate",
+      "weight": 1.0
+    },
+    {
+      "type": "space_simulation:core_quartz",
+      "weight": 1.0
+    },
+    {
+      "type": "space_simulation:core_troilite",
+      "weight": 0.5
+    }
   ]
 }

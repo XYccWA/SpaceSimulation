@@ -73,8 +73,8 @@ public final class AsteroidEntityifier {
     /** 暂存区可用高度（块）——世界建造高度内留足余量。 */
     private static final int STAGING_Y_HEADROOM = 400;
 
-    /** 暂存区需要常驻加载的区块半径（区块数）——结构最大约 47 格，留足余量。 */
-    private static final int STAGING_CHUNK_RADIUS = 3;
+    /** 暂存区需要常驻加载的区块半径（区块数）——结构最大 23 格，48 格覆盖足够。 */
+    private static final int STAGING_CHUNK_RADIUS = 2;
 
     /** 子层级名前缀：用于识别"这是我们生成的小行星"（跨会话残留清理 / 孤儿接管）。 */
     public static final String NAME_PREFIX = "asteroid_";

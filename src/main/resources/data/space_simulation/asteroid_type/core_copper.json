@@ -1,0 +1,35 @@
+{
+  "name": "铜矿小行星",
+  "variants": [
+    {
+      "name": "铜矿·碎块",
+      "structure": "space_simulation:core_copper_1",
+      "weight": 1.0
+    },
+    {
+      "name": "铜矿·椭球",
+      "structure": "space_simulation:core_copper_2",
+      "weight": 1.0
+    },
+    {
+      "name": "铜矿·团块",
+      "structure": "space_simulation:core_copper_3",
+      "weight": 1.0
+    },
+    {
+      "name": "铜矿·多孔",
+      "structure": "space_simulation:core_copper_4",
+      "weight": 1.0
+    },
+    {
+      "name": "铜矿·致密",
+      "structure": "space_simulation:core_copper_5",
+      "weight": 1.0
+    },
+    {
+      "name": "铜矿·不规则",
+      "structure": "space_simulation:core_copper_6",
+      "weight": 1.0
+    }
+  ]
+}

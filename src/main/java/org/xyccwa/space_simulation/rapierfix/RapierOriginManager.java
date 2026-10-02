@@ -19,13 +19,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 修复：每个物理场景（sceneHandle）维护一个"场景原点" O（对齐 16 块），所有进入
  * 原生引擎的**世界域坐标**减去 O、回读时加回 O。**O 是动态的**：玩家偏离 O 超过
- * 阈值（{@link #REBASE_THRESHOLD}，100 万块）时，场景整体重基到玩家新区域——
+ * 阈值（{@link #REBASE_THRESHOLD}，10 万块）时，场景整体重基到玩家新区域——
  * 由于玩家活动区是环绕原点的圆环（跨度 2000 万块），固定 O 无法覆盖，必须动态跟随。
  *
- * 重基（一次性，由 RapierPhysicsPipelineMixin 在物理帧末执行）：
+ * 重基（由 RapierPhysicsPipelineMixin 在物理帧末执行）：
  * - 移除全部已记录的 global 父世界地形 chunk（旧 O 域）；
- * - 更新 origin 到新 O；重传 chunk（新 O 域）；teleport 重定位刚体（世界位姿不变，
- *   set_position 保留速度）；plot 局部域内容（octree/COM/约束锚点）不受原点影响，无需重传。
+ * - 更新 origin 到新 O；teleport 重定位刚体（世界位姿不变，set_position 保留速度）；
+ * - **重传 chunk（新 O 域）分帧进行**（每物理帧有时间预算），避免 900+ 个 section 一次性
+ *   重传阻塞主线程约 1 秒；随后回读引擎位姿与迁移前的世界位姿做一次精确自检。
+ * plot 局部域内容（octree/COM/约束锚点）不受原点影响，无需重传。
  *
  * 平移只作用于"世界域量"：刚体 pose、global chunk、约束电机线性轴目标。不平移（原生
  * 侧已用 f64/整数精确处理）：plot 局部域 i32 坐标、f64 COM、f64 约束锚点、相对 COM 的
@@ -58,6 +60,17 @@ public final class RapierOriginManager {
 
     private static final Map<Long, SceneState> SCENES = new ConcurrentHashMap<>();
 
+    /**
+     * 场景原点建立之前提交的刚体 id 暂存区（key = sceneHandle）。
+     *
+     * `RapierPhysicsPipeline.add` 包装（createSubLevel）会在原点尚未设定的场景上先登记刚体，
+     * 若此时直接丢弃，该场景的**第一个刚体**永远不进 {@link SceneState#bodies}，任何重基都不会
+     * 迁移它 —— 它的引擎坐标永久停留在旧原点域（与世界的差 = 新旧原点之差，可达百万块），
+     * 表现为每物理帧每条刚体一条 "rebase NOT effective" 警告。故此处暂存，待
+     * {@link #originFor(long, double, double, double)} 建立场景时并入。
+     */
+    private static final Map<Long, Set<Integer>> PENDING_BODIES = new ConcurrentHashMap<>();
+
     private RapierOriginManager() {
     }
 
@@ -76,7 +89,7 @@ public final class RapierOriginManager {
      * @return 该场景的原点（世界块坐标，16 的倍数）
      */
     public static Vector3d originFor(final long scene, final double autoX, final double autoY, final double autoZ) {
-        return SCENES.computeIfAbsent(scene, s -> {
+        final SceneState state = SCENES.computeIfAbsent(scene, s -> {
             final double cx = SpaceSimulationConfig.rapierRebaseOriginX.get();
             final double cy = SpaceSimulationConfig.rapierRebaseOriginY.get();
             final double cz = SpaceSimulationConfig.rapierRebaseOriginZ.get();
@@ -90,7 +103,16 @@ public final class RapierOriginManager {
                     scene, format(origin.x), format(origin.y), format(origin.z),
                     format(autoX), format(autoY), format(autoZ));
             return new SceneState(origin);
-        }).origin;
+        });
+        // 并入原点建立前暂存的刚体（典型就是本场景的第一个刚体）：否则它会永远漏出重基迁移。
+        // 放在 computeIfAbsent 之外，保证 mapping function 被并发重复执行时记录也不会丢。
+        final Set<Integer> pending = PENDING_BODIES.remove(scene);
+        if (pending != null && !pending.isEmpty()) {
+            state.bodies.addAll(pending);
+            LOGGER.info("[rapierfix] scene {} adopted {} body record(s) staged before origin was set",
+                    scene, pending.size());
+        }
+        return state.origin;
     }
 
     /** @return 场景原点；未设定时为 ZERO（等价于不重基） */
@@ -152,11 +174,29 @@ public final class RapierOriginManager {
                 .map(RapierOriginManager::unpack).iterator();
     }
 
-    /** 记录一个子层级刚体 id（重基时需重定位） */
+    /**
+     * 记录一个子层级刚体 id（重基时需重定位）。
+     *
+     * 场景原点尚未建立时（场景的第一个刚体先于 originFor 到达）暂存到 {@link #PENDING_BODIES}，
+     * 由 originFor 建立场景时并入 —— **不可直接丢弃**，否则该刚体永远不参与重基迁移。
+     */
     public static void recordBody(final long scene, final int id) {
+        if (!enabled()) {
+            return;
+        }
         final SceneState state = SCENES.get(scene);
         if (state != null) {
             state.bodies.add(id);
+            return;
+        }
+        PENDING_BODIES.computeIfAbsent(scene, s -> ConcurrentHashMap.newKeySet()).add(id);
+    }
+
+    /** 忘记一个刚体记录（该刚体已不在物理管线的 activeSubLevels 中时清理，避免后续重基重复空转） */
+    public static void forgetBody(final long scene, final int id) {
+        final SceneState state = SCENES.get(scene);
+        if (state != null) {
+            state.bodies.remove(id);
         }
     }
 
@@ -193,20 +233,32 @@ public final class RapierOriginManager {
         }
     }
 
+    /**
+     * global chunk 记录的键：世界 section 坐标 → long。位布局与 MC {@code SectionPos} 一致，
+     * 三个字段**互不重叠**：y 20 位（bit0..19）、z 22 位（bit20..41）、x 22 位（bit42..63），
+     * 每轴容量 ±2,097,151 section（±33.5M 块）。
+     *
+     * 旧实现为 z 21 位（bit0..20）+ y 20 位（bit20..39），bit20 被两个字段共用：
+     * 负 z 的符号位会把 y 读大 1，奇数 y 会把正 z 读成 z − 1,048,576
+     * （实测 (29016, 63, 3000) → (29016, 63, −1045576)）。重基快照依赖该往返，
+     * 起点错位会让 removeChunk 删错 section、重传写错坐标、记录集合漂移。
+     */
     private static long pack(final int x, final int y, final int z) {
-        return ((long) x & 0x1FFFFFL) << 42 | ((long) y & 0xFFFFFL) << 20 | ((long) z & 0x1FFFFFL);
+        return ((long) x & 0x3FFFFFL) << 42 | ((long) z & 0x3FFFFFL) << 20 | ((long) y & 0xFFFFFL);
     }
 
     private static int[] unpack(final long packed) {
-        final int x = (int) (packed >> 42 & 0x1FFFFFL);
-        final int y = (int) (packed >> 20 & 0xFFFFFL);
-        final int z = (int) (packed & 0x1FFFFFL);
-        // 符号扩展（21 位有符号）
         return new int[]{
-                x >= 0x100000 ? x - 0x200000 : x,
-                y >= 0x80000 ? y - 0x100000 : y,
-                z >= 0x100000 ? z - 0x200000 : z
+                signExtend((int) (packed >> 42 & 0x3FFFFFL), 22),
+                signExtend((int) (packed & 0xFFFFFL), 20),
+                signExtend((int) (packed >> 20 & 0x3FFFFFL), 22)
         };
+    }
+
+    /** @return 把 {@code value} 的低 {@code bits} 位按二进制补码符号扩展为 int */
+    private static int signExtend(final int value, final int bits) {
+        final int shift = 32 - bits;
+        return value << shift >> shift;
     }
 
     private static String format(double v) {

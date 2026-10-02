@@ -13,6 +13,7 @@ import org.joml.Vector3d;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArgs;
@@ -31,9 +32,11 @@ import java.util.Map;
  * 字符串目标）的所有**世界域坐标**进出原生引擎的边界上做 ±O 平移，使原生 f32 引擎
  * 内的坐标量级远离世界原点（玩家活动区 500~2000 万块，f32 ULP 0.25~1 块）。
  *
- * **动态重基**：玩家偏离场景原点超过阈值（100 万块）时，把场景整体重基到玩家新区域
+ * **动态重基**：玩家偏离场景原点超过阈值（10 万块）时，把场景整体重基到玩家新区域
  * ——重传全部已加载的 global 地形 chunk、重定位所有子层级刚体（teleport）；
  * plot 局部域内容（octree/COM/约束锚点）不受原点影响，无需重传。
+ * 地形 chunk 的重传**分帧进行**（每物理帧限时限量），因为 900+ 个 section 一次性重传实测
+ * 阻塞主线程 0.9~1.1 秒；重基结束后按"回读引擎位姿 vs 迁移前世界位姿"做一次精确自检。
  *
  * 平移范围（原生 Rust 源码核实的域语义）：
  * - 必须平移（世界域量）：刚体 pose（createSubLevel/teleportObject）、
@@ -80,6 +83,33 @@ public abstract class RapierPhysicsPipelineMixin {
     public abstract void teleport(dev.ryanhcode.sable.api.physics.PhysicsPipelineBody body,
                                   org.joml.Vector3dc position, org.joml.Quaterniondc orientation);
 
+    /** 目标类方法：回读引擎位姿（重基自检用；包装会在 RETURN 处加回原点） */
+    @Shadow
+    public abstract Pose3d readPose(dev.ryanhcode.sable.sublevel.ServerSubLevel subLevel, Pose3d dest);
+
+    /**
+     * 重基待补传的地形 section（世界 section 坐标）。
+     * 一次重基涉及 900+ 个 section，逐个走 16³ 体素解析 + JNI 上传，一次性做完会阻塞主线程
+     * 约 1 秒；改为每物理帧补传 {@link #spaceSim$UPLOAD_BATCH} 个，把停顿摊到多帧。
+     */
+    @Unique
+    private final java.util.ArrayDeque<int[]> spaceSim$pendingUploads = new java.util.ArrayDeque<>();
+
+    /** 本次补传的起始时刻（纳秒）；0 表示没有进行中的补传 */
+    @Unique
+    private long spaceSim$uploadStartNanos = 0L;
+
+    /** 本次补传的 section 总数与已用物理帧数（仅用于日志） */
+    @Unique
+    private int spaceSim$uploadTotal = 0;
+
+    /** 本次补传中真正上传成功的 section 数（空 section 会被跳过，不计入） */
+    @Unique
+    private int spaceSim$uploadedSections = 0;
+
+    @Unique
+    private int spaceSim$uploadTicks = 0;
+
     private static java.lang.reflect.Method sceneHandleMethod;
 
     private long spaceSim$sceneHandle() {
@@ -95,9 +125,13 @@ public abstract class RapierPhysicsPipelineMixin {
     )
     private void spaceSim$createSubLevel(final Args args) {
         final long scene = args.get(0);
+        final int bodyId = args.get(1);
         final double[] pose = args.get(2);
-        RapierOriginManager.recordBody(scene, args.get(1));
+        // 顺序要紧：shiftPose → originFor 会为该场景建立原点（computeIfAbsent），recordBody
+        // 必须在它之后 —— 否则场景的**第一个刚体**登记时 SCENES 里还没有该场景而被丢弃，
+        // 它将永远不参与重基迁移（引擎坐标永久停在旧原点域，差值 = 新旧原点之差，可达百万块）。
         args.set(2, RapierOriginManager.shiftPose(scene, pose));
+        RapierOriginManager.recordBody(scene, bodyId);
     }
 
     /**
@@ -123,19 +157,16 @@ public abstract class RapierPhysicsPipelineMixin {
 
     /**
      * 刚体位姿回读：场景坐标 → 世界坐标（+O 还原，Java 侧 logicalPose 保持世界域）。
+     *
+     * 注意这里**不做**逐帧的"引擎坐标量级"诊断：场景原点跟随玩家，环带上相距百万块的刚体
+     * 是常态，按量级判断会把正常刚体误报成"重基未生效"（实测每帧上万条）。重基是否生效
+     * 改在 {@link #spaceSim$rebase} 里用"回收引擎位姿 ↔ 迁移前世界位姿"精确校验一次。
      */
     @Inject(method = "readPose", at = @At("RETURN"))
     private void spaceSim$readPose(final dev.ryanhcode.sable.sublevel.ServerSubLevel subLevel, final Pose3d dest,
                                    final CallbackInfoReturnable<Pose3d> cir) {
         if (!RapierOriginManager.enabled()) {
             return;
-        }
-        // 诊断：引擎内坐标若仍达百万级，说明重基未生效（原点未设定或平移未执行）
-        final double maxAbs = Math.max(Math.abs(dest.position().x),
-                Math.max(Math.abs(dest.position().y), Math.abs(dest.position().z)));
-        if (maxAbs > 1_000_000.0) {
-            LOGGER.warn("[rapierfix] engine pose {} is {} blocks from scene origin — rebase NOT effective for this body",
-                    dest.position(), format(maxAbs));
         }
         RapierOriginManager.toWorld(this.spaceSim$sceneHandle(), dest.position());
     }
@@ -213,9 +244,11 @@ public abstract class RapierPhysicsPipelineMixin {
         final int x = args.get(1);
         final int y = args.get(2);
         final int z = args.get(3);
-        // plotgrid 内方块属于子层级存储区（plotyard 域），不平移
+        // plotgrid 内方块属于子层级存储区（plotyard 域），不平移。判定必须与 Sable 的
+        // handleChunkSectionAddition 一致（那里用 plot == null 判 global）：inBounds 只看
+        // "是否落在 plotgrid 存储矩形内"，对未分配 plot 的格子会与 addChunk 的域归属相反。
         final SubLevelContainer container = SubLevelContainer.getContainer(this.level);
-        if (container != null && container.inBounds(x >> 4, z >> 4)) {
+        if (container != null && container.getPlot(x >> 4, z >> 4) != null) {
             return;
         }
         final Vector3d origin = RapierOriginManager.originFor(scene,
@@ -226,15 +259,22 @@ public abstract class RapierPhysicsPipelineMixin {
     }
 
     /**
-     * 每个物理帧末（postPhysicsTicks，所有 substep 与 readPose 完成之后）：玩家偏离
-     * 场景原点超过阈值时触发整体重基。选在物理帧末而非 tick() 开头，可保证重基不打断
-     * 本帧物理事件、且所有刚体位姿已用统一 origin 写回——下一帧干净地用新 origin，
+     * 每个物理帧末（postPhysicsTicks，所有 substep 与 readPose 完成之后）：
+     * ① 推进上一批重基遗留的地形补传（每帧限量，见 {@link #spaceSim$pendingUploads}）；
+     * ② 玩家偏离场景原点超过阈值时触发整体重基。选在物理帧末而非 tick() 开头，可保证重基
+     * 不打断本帧物理事件、且所有刚体位姿已用统一 origin 写回——下一帧干净地用新 origin，
      * 消除重基瞬间的一帧抽搐（之前在 tick() 开头重基，本帧步进/readPose 会混用新旧 origin）。
+     * 补传未完成时推迟新的重基：避免"上一批 chunk 还在新域补传"时原点再次变动，导致记录
+     * 集合与引擎状态不一致。
      */
     @Inject(method = "postPhysicsTicks", at = @At("TAIL"))
     private void spaceSim$maybeRebase(final CallbackInfo ci) {
         if (!RapierOriginManager.enabled()) {
             return;
+        }
+        this.spaceSim$flushPendingUploads();
+        if (!this.spaceSim$pendingUploads.isEmpty()) {
+            return; // 上一次重基的地形补传还没做完，本帧不重基
         }
         final long scene = this.spaceSim$sceneHandle();
         ServerPlayer player = null;
@@ -254,10 +294,79 @@ public abstract class RapierPhysicsPipelineMixin {
         this.spaceSim$rebase(scene, RapierOriginManager.newOriginFor(px, py, pz));
     }
 
+    /** 每物理帧补传的地形 section 硬上限（配合时间预算使用，防止极端情况下单帧过长） */
+    @Unique
+    private static final int spaceSim$UPLOAD_BATCH = 256;
+
+    /** 每物理帧允许花在补传上的时间预算（毫秒）；用预算而非固定条数，快慢机器都能自适应 */
+    @Unique
+    private static final long spaceSim$UPLOAD_BUDGET_MS = 10L;
+
+    /** 重基自检容差（块）：一帧物理位移远小于它，而漏迁的偏差 ≥ REBASE_THRESHOLD(10 万) */
+    @Unique
+    private static final double spaceSim$POSE_TOLERANCE = 1024.0;
+
+    /**
+     * 把待补传的地形 section 上传到**新原点域**（包装会自动 −O_new 并重新记录）。
+     * 每物理帧最多花 {@link #spaceSim$UPLOAD_BUDGET_MS} 毫秒、最多
+     * {@link #spaceSim$UPLOAD_BATCH} 个，队列清空时输出本次补传的耗时统计。
+     */
+    @Unique
+    private void spaceSim$flushPendingUploads() {
+        if (this.spaceSim$pendingUploads.isEmpty()) {
+            return;
+        }
+        if (this.spaceSim$uploadStartNanos == 0L) {
+            this.spaceSim$uploadStartNanos = System.nanoTime();
+        }
+        this.spaceSim$uploadTicks++;
+        final long deadline = System.nanoTime() + spaceSim$UPLOAD_BUDGET_MS * 1_000_000L;
+        int done = 0;
+        while (!this.spaceSim$pendingUploads.isEmpty() && done < spaceSim$UPLOAD_BATCH) {
+            final int[] xyz = this.spaceSim$pendingUploads.poll();
+            if (xyz == null) {
+                break;
+            }
+            done++;
+            try {
+                // 队列里是 Sable 的 section 坐标 (chunkX, sectionY, chunkZ)：区块列必须用
+                // (x, z)，section 索引用 sectionY —— Sable 自己也用 accelerator.getChunk(x, z)
+                // （handleChunkSectionAddition），早先把 sectionY 当 chunkZ 会取到无关区块列。
+                final LevelChunk chunk = this.level.getChunk(xyz[0], xyz[2]);
+                if (chunk == null || chunk.isEmpty()) {
+                    continue;
+                }
+                final LevelChunkSection section = chunk.getSection(chunk.getSectionIndexFromSectionY(xyz[1]));
+                if (section == null) {
+                    continue;
+                }
+                this.handleChunkSectionAddition(section, xyz[0], xyz[1], xyz[2], true);
+                this.spaceSim$uploadedSections++;
+            } catch (final Exception e) {
+                LOGGER.warn("[rapierfix] rebase: failed to re-upload chunk ({}, {}, {}), skipping", xyz[0], xyz[1], xyz[2], e);
+            }
+            if (System.nanoTime() >= deadline) {
+                break; // 本帧预算用尽，剩余留给下一物理帧
+            }
+        }
+        if (this.spaceSim$pendingUploads.isEmpty()) {
+            final long ms = (System.nanoTime() - this.spaceSim$uploadStartNanos) / 1_000_000L;
+            LOGGER.info("[rapierfix] rebase: terrain re-upload finished ({} of {} sections uploaded in {} ms over {} physics frames)",
+                    this.spaceSim$uploadedSections, this.spaceSim$uploadTotal, ms, this.spaceSim$uploadTicks);
+            this.spaceSim$uploadStartNanos = 0L;
+            this.spaceSim$uploadTotal = 0;
+            this.spaceSim$uploadedSections = 0;
+            this.spaceSim$uploadTicks = 0;
+        }
+    }
+
     /**
      * 场景整体重基：先把全部 global 地形 chunk 从引擎移除（旧 O 域）、记录刚体世界位姿
      * 与速度，再更新原点，最后重传 chunk（新 O 域）并重定位刚体（teleport 后恢复原速度）。
      * plot 局部域内容（octree/COM/约束锚点）不受原点影响，无需重传。
+     *
+     * 待迁移刚体取自 activeSubLevels（原生引擎刚体的权威全集），不依赖本地记录集合 ——
+     * 少迁移任何一个刚体都会让它永久停留在旧原点域。
      */
     private void spaceSim$rebase(final long scene, final Vector3d newOrigin) {
         final Vector3d oldOrigin = RapierOriginManager.originFor(scene);
@@ -276,6 +385,7 @@ public abstract class RapierPhysicsPipelineMixin {
             }
 
             // 1) 移除全部 global chunk（旧 O 域；包装会自动 -O_old 并清除记录）
+            final long removeStart = System.nanoTime();
             for (final int[] xyz : chunks) {
                 try {
                     this.handleChunkSectionRemoval(xyz[0], xyz[1], xyz[2]);
@@ -283,38 +393,54 @@ public abstract class RapierPhysicsPipelineMixin {
                     LOGGER.warn("[rapierfix] rebase: failed to remove chunk ({}, {}, {}), skipping", xyz[0], xyz[1], xyz[2], e);
                 }
             }
+            final long removeMs = (System.nanoTime() - removeStart) / 1_000_000L;
 
             // 2) 记录全部刚体的世界位姿（logicalPose 为世界域 double；速度由 teleport 的
-            //    set_position 保留，不在此重施——避免叠加导致速度翻倍）
+            //    set_position 保留，不在此重施——避免叠加导致速度翻倍）。
+            //    刚体全集以 activeSubLevels（原生引擎刚体的权威登记表，add/remove 同步维护）
+            //    为准，而不是本地记录集合：任何登记遗漏都会让刚体留在旧原点域，表现为
+            //    "引擎坐标百万级 → 每物理帧一条 WARN"，这里从结构上堵死漏迁。
             final Map<Integer, Pose3d> bodyPoses = new HashMap<>();
-            for (final Integer id : RapierOriginManager.bodies(scene)) {
-                final dev.ryanhcode.sable.sublevel.ServerSubLevel sub = this.activeSubLevels.get(id.intValue());
+            for (final Int2ObjectMap.Entry<dev.ryanhcode.sable.sublevel.ServerSubLevel> entry
+                    : this.activeSubLevels.int2ObjectEntrySet()) {
+                final dev.ryanhcode.sable.sublevel.ServerSubLevel sub = entry.getValue();
                 if (sub != null && !sub.isRemoved()) {
-                    bodyPoses.put(id, new Pose3d(sub.logicalPose()));
-                } else {
-                    LOGGER.debug("[rapierfix] rebase: body {} not in activeSubLevels, skipping", id);
+                    bodyPoses.put(entry.getIntKey(), new Pose3d(sub.logicalPose()));
                 }
+            }
+
+            // 2b) 本地记录里已从 activeSubLevels 消失的刚体（remove 后残留的记录）：重基拿不到
+            //     它们的世界位姿、无法迁移，直接清理记录，避免以后每次重基重复空转
+            final java.util.List<Integer> staleRecords = new java.util.ArrayList<>();
+            for (final Integer id : RapierOriginManager.bodies(scene)) {
+                if (!bodyPoses.containsKey(id)) {
+                    staleRecords.add(id);
+                }
+            }
+            for (final Integer id : staleRecords) {
+                RapierOriginManager.forgetBody(scene, id.intValue());
+            }
+            if (!staleRecords.isEmpty()) {
+                LOGGER.info("[rapierfix] rebase: dropped {} stale body record(s) no longer in activeSubLevels",
+                        staleRecords.size());
             }
 
             // 3) 更新原点（此后所有包装使用新 O）
             RapierOriginManager.updateOrigin(scene, newOrigin);
 
-            // 4) 重传全部 global chunk（新 O 域；包装自动 -O_new 并重新记录）
+            // 4) global chunk 重传入队（**不在此帧同步做完**）：新 O 域的重传每次要跑 16³
+            //    体素解析 + JNI 上传 + 清空物理加速缓存，900+ 个 section 一次性做完实测阻塞
+            //    主线程 0.9~1.1 秒（直接把 tick 拖垮）。改由 postPhysicsTicks 每帧补传
+            //    UPLOAD_BATCH 个；中间几帧引擎里地形不全（碰撞暂缺），对全空气的太空维度
+            //    几乎没有影响，换来重基不再产生秒级停顿。
+            this.spaceSim$pendingUploads.clear();
             for (final int[] xyz : chunks) {
-                try {
-                    final LevelChunk chunk = this.level.getChunk(xyz[0], xyz[1]);
-                    if (chunk == null || chunk.isEmpty()) {
-                        continue;
-                    }
-                    final LevelChunkSection section = chunk.getSection(chunk.getSectionIndexFromSectionY(xyz[1]));
-                    if (section == null) {
-                        continue;
-                    }
-                    this.handleChunkSectionAddition(section, xyz[0], xyz[1], xyz[2], true);
-                } catch (final Exception e) {
-                    LOGGER.warn("[rapierfix] rebase: failed to re-upload chunk ({}, {}, {}), skipping", xyz[0], xyz[1], xyz[2], e);
-                }
+                this.spaceSim$pendingUploads.add(xyz);
             }
+            this.spaceSim$uploadTotal = this.spaceSim$pendingUploads.size();
+            this.spaceSim$uploadedSections = 0;
+            this.spaceSim$uploadTicks = 0;
+            this.spaceSim$uploadStartNanos = 0L;
 
             // 5) 重定位刚体（teleport 自动 -O_new；set_position 保留速度，不需重施）。
             //    不同步 lastPose：客户端插值 renderPose = lerp(lastPose, logicalPose, pt)，
@@ -329,10 +455,57 @@ public abstract class RapierPhysicsPipelineMixin {
                 this.teleport(sub, entry.getValue().position(), entry.getValue().orientation());
             }
 
-            LOGGER.info("[rapierfix] scene {} rebase complete ({} chunks, {} bodies)",
-                    scene, chunks.size(), bodyPoses.size());
+            LOGGER.info("[rapierfix] scene {} rebase: origin updated to ({}, {}, {}) — {} chunks queued for re-upload (remove {} ms), {} bodies teleported",
+                    scene, format(newOrigin.x), format(newOrigin.y), format(newOrigin.z),
+                    chunks.size(), removeMs, bodyPoses.size());
+
+            // 6) 自检：回读引擎位姿，验证每个刚体确实落在新原点域（引擎坐标 + O_new == 迁移前
+            //    的世界位姿）。这是"重基是否生效"的精确判据 —— 逐帧比较引擎坐标量级会把
+            //    "真的离原点很远"的刚体误报成漏迁（原点跟随玩家，环带上相距百万块是常态），
+            //    故只在重基这一瞬间校验一次。
+            this.spaceSim$verifyRebase(bodyPoses);
         } catch (final Exception e) {
             LOGGER.error("[rapierfix] rebase FAILED for scene {}", scene, e);
+        }
+    }
+
+    /**
+     * 重基自检：逐个回读引擎位姿并与迁移前记录的世界位姿比对，偏差超过
+     * {@link #spaceSim$POSE_TOLERANCE} 即说明该刚体没被平移（仍停留在旧原点域）。
+     */
+    @Unique
+    private void spaceSim$verifyRebase(final Map<Integer, Pose3d> bodyPoses) {
+        if (bodyPoses.isEmpty()) {
+            return;
+        }
+        final Pose3d probe = new Pose3d();
+        int stale = 0;
+        for (final Map.Entry<Integer, Pose3d> entry : bodyPoses.entrySet()) {
+            final dev.ryanhcode.sable.sublevel.ServerSubLevel sub = this.activeSubLevels.get(entry.getKey().intValue());
+            if (sub == null || sub.isRemoved()) {
+                continue;
+            }
+            final Pose3d recorded = entry.getValue();
+            final Pose3d read;
+            try {
+                read = this.readPose(sub, probe); // 包装在 RETURN 处加回新原点 → 世界域
+            } catch (final Exception e) {
+                LOGGER.warn("[rapierfix] rebase self-check: failed to read back body {}", entry.getKey(), e);
+                continue;
+            }
+            final double deviation = Math.max(Math.abs(read.position().x - recorded.position().x),
+                    Math.max(Math.abs(read.position().y - recorded.position().y),
+                            Math.abs(read.position().z - recorded.position().z)));
+            if (deviation > spaceSim$POSE_TOLERANCE) {
+                stale++;
+                LOGGER.warn("[rapierfix] rebase self-check: body {} is {} blocks off its recorded world pose — it stayed in the old origin domain",
+                        entry.getKey(), format(deviation));
+            }
+        }
+        if (stale > 0) {
+            LOGGER.error("[rapierfix] rebase self-check FAILED: {}/{} bodies were not rebased", stale, bodyPoses.size());
+        } else {
+            LOGGER.info("[rapierfix] rebase self-check ok ({} bodies verified)", bodyPoses.size());
         }
     }
 

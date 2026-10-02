@@ -1,0 +1,35 @@
+{
+  "name": "镁橄榄石小行星",
+  "variants": [
+    {
+      "name": "镁橄榄石·碎块",
+      "structure": "space_simulation:core_forsterite_1",
+      "weight": 1.0
+    },
+    {
+      "name": "镁橄榄石·椭球",
+      "structure": "space_simulation:core_forsterite_2",
+      "weight": 1.0
+    },
+    {
+      "name": "镁橄榄石·团块",
+      "structure": "space_simulation:core_forsterite_3",
+      "weight": 1.0
+    },
+    {
+      "name": "镁橄榄石·多孔",
+      "structure": "space_simulation:core_forsterite_4",
+      "weight": 1.0
+    },
+    {
+      "name": "镁橄榄石·致密",
+      "structure": "space_simulation:core_forsterite_5",
+      "weight": 1.0
+    },
+    {
+      "name": "镁橄榄石·不规则",
+      "structure": "space_simulation:core_forsterite_6",
+      "weight": 1.0
+    }
+  ]
+}

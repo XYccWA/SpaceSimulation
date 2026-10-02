@@ -37,9 +37,17 @@ public class SpaceSimulation {
         ModContainer container = ModLoadingContext.get().getActiveContainer();
         //配置
         container.registerConfig(ModConfig.Type.STARTUP, SpaceSimulationConfig.SPEC);
+        // 轨道引力参数：注入配置读取器（惰性解析，见 refreshGravity）
+        refreshGravity();
         //光照开关缓存：mixin 热路径不能每次都读配置，只在加载/重载时刷新
-        modEventBus.addListener((ModConfigEvent.Loading event) -> LightingSettings.refresh());
-        modEventBus.addListener((ModConfigEvent.Reloading event) -> LightingSettings.refresh());
+        modEventBus.addListener((ModConfigEvent.Loading event) -> {
+            LightingSettings.refresh();
+            refreshGravity();
+        });
+        modEventBus.addListener((ModConfigEvent.Reloading event) -> {
+            LightingSettings.refresh();
+            refreshGravity();
+        });
         //方块
         SpaceSimulationBlock.BLOCKS.register(modEventBus);
         //物品
@@ -61,6 +69,8 @@ public class SpaceSimulation {
 
         // 程序化小行星系统：/asteroid 命令（meta / belts / info <index> / near / loader / reload）
         NeoForge.EVENT_BUS.addListener(AsteroidCommand::register);
+        // 玩家轨道力学：/orbit 命令（info / mu / circular）
+        NeoForge.EVENT_BUS.addListener(org.xyccwa.space_simulation.command.OrbitCommand::register);
         // 小行星数据包（asteroid_belt / asteroid_type / structure）：随数据包重载原子安装新宇宙
         NeoForge.EVENT_BUS.addListener(SpaceSimulation::onAddReloadListeners);
         // 兜底：服务器启动完成后立即解析安装一次（即使 reload 监听因故未触发，进世界前也已生效）
@@ -72,6 +82,9 @@ public class SpaceSimulation {
         // 停服前清空活动小行星子层级，避免它们被存档成跨会话残留
         NeoForge.EVENT_BUS.addListener(
                 org.xyccwa.space_simulation.asteroid.entity.AsteroidEntityifyService::onServerStopping);
+        // 低频性能统计（默认每 60 秒一行）：tick 计算耗时 avg/max、实体/区块/小行星数、堆内存
+        NeoForge.EVENT_BUS.addListener(org.xyccwa.space_simulation.diagnostics.PerfLogger::onTickPre);
+        NeoForge.EVENT_BUS.addListener(org.xyccwa.space_simulation.diagnostics.PerfLogger::onTickPost);
 
         LOGGER.info("[小行星数据包] 事件监听已注册（AddReloadListenerEvent / ServerStartedEvent）");
 
@@ -81,6 +94,26 @@ public class SpaceSimulation {
             // 内建光影包必须尽早落盘：Iris 会在游戏启动早期扫描 shaderpacks 目录，
             // 晚于它写入会导致本次启动仍编译到磁盘上的旧文件（修复要等下一次启动才生效）。
             org.xyccwa.space_simulation.client.ShaderPackInstaller.deployEarly();
+        }
+    }
+
+    /**
+     * 轨道力学参数缓存：引力参数 μ 在每 tick 的积分热路径上被读取，不能每次都查配置。
+     * 采用"惰性解析 + 配置重载刷新"：STARTUP 配置在构造期已加载，但 ModConfigEvent.Loading
+     * 实测在本监听器注册之前就触发了，所以这里注入读取器，第一次用到时才解析。
+     * 客户端收到服务端 OrbitalParamsPayload 后会用 setMu 覆盖（并且不再被本地配置改回）。
+     */
+    private static void refreshGravity() {
+        org.xyccwa.space_simulation.orbital.Gravity.setFallback(() -> {
+            boolean enabled = SpaceSimulationConfig.orbitalMechanicsEnabled.get();
+            return enabled ? SpaceSimulationConfig.orbitalMu.get() : 0.0;
+        });
+        try {
+            LOGGER.info("[轨道] 引力参数读取器已注入（μ = {}）",
+                    org.xyccwa.space_simulation.orbital.Gravity.mu());
+        } catch (Throwable t) {
+            // 配置尚未就绪：保持惰性，第一次真正用到时再解析
+            LOGGER.info("[轨道] 引力参数读取器已注入（配置尚未就绪，稍后惰性解析）");
         }
     }
 

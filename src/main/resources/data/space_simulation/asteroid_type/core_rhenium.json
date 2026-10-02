@@ -1,0 +1,35 @@
+{
+  "name": "稀散金属小行星",
+  "variants": [
+    {
+      "name": "稀散金属·碎块",
+      "structure": "space_simulation:core_rhenium_1",
+      "weight": 1.0
+    },
+    {
+      "name": "稀散金属·椭球",
+      "structure": "space_simulation:core_rhenium_2",
+      "weight": 1.0
+    },
+    {
+      "name": "稀散金属·团块",
+      "structure": "space_simulation:core_rhenium_3",
+      "weight": 1.0
+    },
+    {
+      "name": "稀散金属·多孔",
+      "structure": "space_simulation:core_rhenium_4",
+      "weight": 1.0
+    },
+    {
+      "name": "稀散金属·致密",
+      "structure": "space_simulation:core_rhenium_5",
+      "weight": 1.0
+    },
+    {
+      "name": "稀散金属·不规则",
+      "structure": "space_simulation:core_rhenium_6",
+      "weight": 1.0
+    }
+  ]
+}

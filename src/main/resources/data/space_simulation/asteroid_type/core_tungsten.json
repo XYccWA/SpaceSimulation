@@ -1,0 +1,35 @@
+{
+  "name": "钨矿小行星",
+  "variants": [
+    {
+      "name": "钨矿·碎块",
+      "structure": "space_simulation:core_tungsten_1",
+      "weight": 1.0
+    },
+    {
+      "name": "钨矿·椭球",
+      "structure": "space_simulation:core_tungsten_2",
+      "weight": 1.0
+    },
+    {
+      "name": "钨矿·团块",
+      "structure": "space_simulation:core_tungsten_3",
+      "weight": 1.0
+    },
+    {
+      "name": "钨矿·多孔",
+      "structure": "space_simulation:core_tungsten_4",
+      "weight": 1.0
+    },
+    {
+      "name": "钨矿·致密",
+      "structure": "space_simulation:core_tungsten_5",
+      "weight": 1.0
+    },
+    {
+      "name": "钨矿·不规则",
+      "structure": "space_simulation:core_tungsten_6",
+      "weight": 1.0
+    }
+  ]
+}

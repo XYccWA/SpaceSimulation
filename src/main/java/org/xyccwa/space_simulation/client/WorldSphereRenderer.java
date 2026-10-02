@@ -1,7 +1,5 @@
 package org.xyccwa.space_simulation.client;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
@@ -15,14 +13,10 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.xyccwa.space_simulation.SpaceSimulation;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 /**
  * 世界球体渲染器:在世界原点 (0,0,0) 渲染半径由世界种子派生(见 SunRadius)的恒星球面。
@@ -187,40 +181,5 @@ public class WorldSphereRenderer {
             SpaceSimulation.LOGGER.error("[WorldSphere] render error", e);
         }
 
-        // 测试截图钩子:球体已画入主帧缓冲,同帧读取截图
-        SphereVisualTest.onAfterLevelRender(mc);
-    }
-
-    /** 读取主帧缓冲并保存 PNG(渲染线程调用,TestFlow 截图用)。 */
-    public static boolean captureScreenshot(Minecraft mc) {
-        try {
-            RenderTarget target = mc.getMainRenderTarget();
-            target.bindRead();
-            int w = target.width;
-            int h = target.height;
-            ByteBuffer buf = BufferUtils.createByteBuffer(w * h * 4);
-            GL11.glReadPixels(0, 0, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buf);
-            NativeImage img = new NativeImage(w, h, false);
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    int i = ((h - 1 - y) * w + x) * 4; // OpenGL 原点在左下,翻转 Y
-                    int r = buf.get(i) & 0xFF;
-                    int g = buf.get(i + 1) & 0xFF;
-                    int b = buf.get(i + 2) & 0xFF;
-                    int a = buf.get(i + 3) & 0xFF;
-                    img.setPixelRGBA(x, y, (a << 24) | (b << 16) | (g << 8) | r);
-                }
-            }
-            Path dir = mc.gameDirectory.toPath().resolve("screenshots");
-            Files.createDirectories(dir);
-            Path file = dir.resolve("sphere_check_" + System.currentTimeMillis() + ".png");
-            img.writeToFile(file);
-            img.close();
-            SpaceSimulation.LOGGER.info("[WorldSphere] screenshot saved: {}", file.toAbsolutePath());
-            return true;
-        } catch (Exception e) {
-            SpaceSimulation.LOGGER.error("[WorldSphere] screenshot failed", e);
-            return false;
-        }
     }
 }

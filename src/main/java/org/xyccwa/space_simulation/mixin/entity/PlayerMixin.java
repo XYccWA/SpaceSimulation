@@ -11,21 +11,26 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.xyccwa.space_simulation.api.EntityRotation;
+import org.xyccwa.space_simulation.orbital.Gravity;
+import org.xyccwa.space_simulation.orbital.TwoBody;
 import org.xyccwa.space_simulation.util.FlightPhysics;
 
 /**
- * 飞行物理：替换 Player.travel，向视角方向施加加速度。
+ * 玩家飞行物理：整体替换 {@code Player.travel}，分两条路径。
  *
- * 客户端权威（client-authoritative）：
- * - 客户端本地玩家（LocalPlayer）在 travel 内读取按键位（xxa/zza/jumping/shiftKeyDown，
- *   由 LocalPlayer.aiStep 在当前 tick 内先设置好），执行飞行物理并移动；
- *   随后 LocalPlayer 通过原版移动包把新位置发给服务器。
- * - 服务器端取消 travel：原版 movePlayer 处理器已把客户端移动包中的位移通过
- *   entity.move(...) 应用并校验（moved-too-quickly 阈值 100 blocks/tick，远超本模组
- *   最大速度 1 block/tick）。若服务器再跑一遍飞行物理，会与原版位置同步叠加成双重移动。
- * - 客户端上其他玩家的实体副本不做本地物理，位置由服务器实体同步驱动。
+ * 一、轨道力学开启（默认，主世界）：服务器权威 + 客户端预测。
+ * - 服务器用自己的积分结果驱动位置（见 PlayerOrbitServer），并每 tick 把权威状态下发；
+ *   客户端的移动包被忽略（见 ServerGamePacketListenerImplMixin），位置一律以服务器为准。
+ * - 客户端同时跑同一套积分做本地预测（消除输入延迟），收到权威状态后按输入序号对账，
+ *   误差超阈值才回滚重放（见 PlayerOrbitClient）。
+ * - 两端用同一份 OrbitalBody/OrbitalPhysics/Gravity，输入来自客户端上报的掩码与朝向。
  *
- * moveMask 仍随 PlayerControlPayload 发给服务器，目前仅作信息/后续校验用，不参与服务器物理。
+ * 二、轨道力学关闭，或不在主世界 / 载具 / 死亡 / 旁观：旧的客户端权威牛顿飞行。
+ * - 客户端本地玩家在 travel 内读按键位、按视角加速并移动，再经原版移动包上报服务器；
+ *   服务器取消 travel 防止双重移动，客户端上其他玩家的副本不做本地物理。
+ *
+ * 朝向（四元数）与速度的存档也在本类：离线时不做实体 tick，靠存档里的轨道根数
+ * 在登录时解析传播（见 OrbitalPersistence）。
  */
 @Mixin(Player.class)
 public abstract class PlayerMixin {
@@ -36,16 +41,45 @@ public abstract class PlayerMixin {
         if (!(self instanceof EntityRotation rot) || !rot.hasOrientation()) {
             return;
         }
-        ci.cancel();
-        // 服务器端：位置由客户端移动包驱动，取消 travel 防止双重移动
-        if (!self.level().isClientSide()) {
-            return;
-        }
-        // 客户端上其他玩家的实体副本：位置由服务器实体同步驱动，不做本地物理
-        if (!self.isLocalPlayer()) {
+        boolean client = self.level().isClientSide();
+        // 载具/死亡/旁观：交回原版（载具与旁观逻辑不能被飞行物理取代）
+        boolean orbital = Gravity.enabled()
+                && self.level().dimension() == net.minecraft.world.level.Level.OVERWORLD
+                && !self.isPassenger() && !self.isDeadOrDying() && !self.isSpectator();
+
+        if (orbital) {
+            // 新路径：双端跑同一套数值积分，服务器权威 + 客户端预测对账
+            ci.cancel();
+            if (client) {
+                if (!self.isLocalPlayer()) {
+                    return; // 其它玩家的副本：位置由服务器实体同步驱动
+                }
+                int mask = spaceSim$readMoveMask(self);
+                rot.setMoveMask(mask);
+                // 经间接层调用客户端类：通用 mixin 不能直接引用仅在客户端存在的类型
+                org.xyccwa.space_simulation.orbital.OrbitalSideHooks.tickClient(self, rot, mask);
+            } else {
+                org.xyccwa.space_simulation.orbital.PlayerOrbitServer.tick(self, rot);
+            }
             return;
         }
 
+        // 旧路径（无引力，或非主世界/载具/旁观）：客户端权威的纯推力飞行
+        if (self.isPassenger() || self.isDeadOrDying() || self.isSpectator()) {
+            return; // 这些状态连取消都不做，完全交回原版
+        }
+        ci.cancel();
+        if (!client) {
+            return; // 服务器端：位置由客户端移动包驱动，取消 travel 防止双重移动
+        }
+        if (!self.isLocalPlayer()) {
+            return; // 客户端上其他玩家的实体副本：位置由服务器实体同步驱动
+        }
+        spaceSim$legacyFlight(self, rot);
+    }
+
+    /** 读取本 tick 的输入位掩码（客户端本地按键）。 */
+    private int spaceSim$readMoveMask(Player self) {
         int mask = 0;
         if (self.zza > 0.01F) mask |= FlightPhysics.MOVE_FORWARD;
         else if (self.zza < -0.01F) mask |= FlightPhysics.MOVE_BACK;
@@ -54,6 +88,12 @@ public abstract class PlayerMixin {
         // jumping 声明在 LivingEntity（非 Player），不能直接 @Shadow，经 accessor 暴露
         if (((LivingEntityAccessor) (Object) this).spaceSim$isJumping()) mask |= FlightPhysics.MOVE_UP;
         if (self.isShiftKeyDown()) mask |= FlightPhysics.MOVE_DOWN;
+        return mask;
+    }
+
+    /** 无引力时的旧飞行物理（客户端权威、无阻力、按视角加速、限速 10 块/tick）。 */
+    private void spaceSim$legacyFlight(Player self, EntityRotation rot) {
+        int mask = spaceSim$readMoveMask(self);
         rot.setMoveMask(mask);
 
         // 机体坐标系输入：left=+X, up=+Y, forward=+Z（与四元数约定一致）
@@ -103,6 +143,37 @@ public abstract class PlayerMixin {
             tag.putFloat("space_sim_qz", q.z);
             tag.putFloat("space_sim_qw", q.w);
         }
+
+        Player self = (Player) (Object) this;
+        if (self.level().isClientSide()) {
+            return;
+        }
+        // 速度不存档是原版行为；轨道力学下速度是状态的一部分，必须存
+        Vec3 v = self.getDeltaMovement();
+        tag.putDouble("space_sim_vx", v.x);
+        tag.putDouble("space_sim_vy", v.y);
+        tag.putDouble("space_sim_vz", v.z);
+
+        // 离线传播用：把此刻的二体轨道根数（含时刻）存档，登录时按服务器 tick 解析传播
+        double mu = Gravity.mu();
+        if (mu > 0.0) {
+            TwoBody.Elements el = TwoBody.fromState(
+                    new double[]{self.getX(), self.getY(), self.getZ()},
+                    new double[]{v.x, v.y, v.z}, mu);
+            if (el.valid) {
+                tag.putBoolean("space_sim_orbit", true);
+                tag.putDouble("space_sim_a", el.a);
+                tag.putDouble("space_sim_e", el.e);
+                tag.putDouble("space_sim_inc", el.inclination);
+                tag.putDouble("space_sim_raan", el.raan);
+                tag.putDouble("space_sim_argp", el.argPeriapsis);
+                tag.putDouble("space_sim_m0", el.meanAnomaly0);
+                tag.putDouble("space_sim_mu", mu);
+                tag.putLong("space_sim_t0", self.level().getGameTime());
+            } else {
+                tag.putBoolean("space_sim_orbit", false);
+            }
+        }
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
@@ -114,6 +185,19 @@ public abstract class PlayerMixin {
                     tag.getFloat("space_sim_qz"),
                     tag.getFloat("space_sim_qw"));
             rot.setOrientation(q);
+        }
+        Player self = (Player) (Object) this;
+        if (tag.contains("space_sim_vx")) {
+            self.setDeltaMovement(tag.getDouble("space_sim_vx"), tag.getDouble("space_sim_vy"), tag.getDouble("space_sim_vz"));
+        }
+        // 离线传播用：把存档里的轨道根数交给 OrbitalPersistence，登录事件里按 tick 解析传播
+        if (self.level() != null && !self.level().isClientSide() && tag.getBoolean("space_sim_orbit")) {
+            org.xyccwa.space_simulation.orbital.OrbitalPersistence.offerSavedOrbit(self.getUUID(),
+                    new org.xyccwa.space_simulation.orbital.OrbitalPersistence.SavedOrbit(
+                            tag.getDouble("space_sim_a"), tag.getDouble("space_sim_e"),
+                            tag.getDouble("space_sim_inc"), tag.getDouble("space_sim_raan"),
+                            tag.getDouble("space_sim_argp"), tag.getDouble("space_sim_m0"),
+                            tag.getDouble("space_sim_mu"), tag.getLong("space_sim_t0")));
         }
     }
 }

@@ -1,0 +1,35 @@
+{
+  "name": "含水硅酸盐小行星",
+  "variants": [
+    {
+      "name": "含水硅酸盐·碎块",
+      "structure": "space_simulation:core_phyllosilicate_1",
+      "weight": 1.0
+    },
+    {
+      "name": "含水硅酸盐·椭球",
+      "structure": "space_simulation:core_phyllosilicate_2",
+      "weight": 1.0
+    },
+    {
+      "name": "含水硅酸盐·团块",
+      "structure": "space_simulation:core_phyllosilicate_3",
+      "weight": 1.0
+    },
+    {
+      "name": "含水硅酸盐·多孔",
+      "structure": "space_simulation:core_phyllosilicate_4",
+      "weight": 1.0
+    },
+    {
+      "name": "含水硅酸盐·致密",
+      "structure": "space_simulation:core_phyllosilicate_5",
+      "weight": 1.0
+    },
+    {
+      "name": "含水硅酸盐·不规则",
+      "structure": "space_simulation:core_phyllosilicate_6",
+      "weight": 1.0
+    }
+  ]
+}

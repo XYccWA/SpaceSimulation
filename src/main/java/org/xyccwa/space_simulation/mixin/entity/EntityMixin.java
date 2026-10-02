@@ -130,6 +130,29 @@ public abstract class EntityMixin implements EntityRotation {
         // 每 tick 兜底重建碰撞盒（原地旋转等不经过 setPos 的场景），并驱动 Hitbox API 的旋转 OBB
         this.spaceSim$refreshBoundingBox();
         PlayerHitbox.update((Entity) (Object) this);
+        spaceSim$applySunGravity();
+    }
+
+    /**
+     * 太阳引力（除玩家外的全部实体，服务端权威）。
+     *
+     * 玩家由 PlayerMixin/OrbitalBody 用速度 Verlet 处理；其它实体（生物/掉落物/箭等）位置
+     * 本来就由服务端驱动，这里在 tick 开头把引力加速度加进 deltaMovement，交给各自的
+     * travel/AI 消费即可（半隐式欧拉，dt = 1 tick）。客户端不加：位置由服务端同步下来。
+     * 只在主世界生效——太阳在世界原点，其它维度的"原点"没有物理意义。
+     */
+    @Unique
+    private void spaceSim$applySunGravity() {
+        Entity self = (Entity) (Object) this;
+        if (self.level().isClientSide()) return;
+        if (!((Object) this instanceof net.minecraft.world.entity.player.Player)) {
+            if (self.level().dimension() != net.minecraft.world.level.Level.OVERWORLD) return;
+            if (!org.xyccwa.space_simulation.orbital.Gravity.enabled()) return;
+            double[] a = new double[3];
+            org.xyccwa.space_simulation.orbital.Gravity.acceleration(self.getX(), self.getY(), self.getZ(), a);
+            Vec3 v = self.getDeltaMovement();
+            self.setDeltaMovement(v.x + a[0], v.y + a[1], v.z + a[2]);
+        }
     }
 
     /**

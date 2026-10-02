@@ -26,8 +26,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # 1. 签出代码
+      #    fetch-depth: 0 —— 必须取完整历史，否则浅克隆里拿不到 tag 对象，
+      #    第 8 步就无法从 tag 注释读取 Release 正文（会静默回退为自动生成）。
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2. 设置 Java 21
       - name: Setup Java
