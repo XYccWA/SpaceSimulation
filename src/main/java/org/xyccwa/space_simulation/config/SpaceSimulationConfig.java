@@ -26,6 +26,8 @@ public class SpaceSimulationConfig {
     public static final ModConfigSpec.IntValue asteroidEntityifyLoadsPerRound;
     public static final ModConfigSpec.IntValue asteroidEntityifyUnloadGraceTicks;
     public static final ModConfigSpec.DoubleValue asteroidSpinDegPerSecond;
+    public static final ModConfigSpec.BooleanValue subLevelInteractionLagCompensation;
+    public static final ModConfigSpec.IntValue subLevelInteractionLagTicks;
 
     public static final ModConfigSpec.BooleanValue fullBrightness;
 
@@ -241,13 +243,15 @@ public class SpaceSimulationConfig {
                     "Radius (blocks) around a player inside which asteroids are materialised as Sable sub-levels. " +
                             "This is a second filter on top of the loader's strong-load radius (2000 blocks, which decides " +
                             "which asteroids are candidates at all): only asteroids within min(strong-load radius, this value) " +
-                            "are materialised, nearest first.")
-                    .defineInRange("asteroidEntityifyRadius", 2_000.0, 16.0, 20_000.0);
+                            "are materialised, nearest first. Keep this clearly below the strong-load radius: a 2000-block " +
+                            "sphere in a dense belt holds well over asteroidEntityifyMaxLoaded asteroids, so the auto-window " +
+                            "filled every slot and /asteroid tp could no longer materialise anything.")
+                    .defineInRange("asteroidEntityifyRadius", 1_000.0, 16.0, 20_000.0);
 
             asteroidEntityifyMaxLoaded = builder.comment(
                     "Hard cap on the number of simultaneously materialised asteroid sub-levels (each one holds a " +
                             "Sable plot with a full structure inside).")
-                    .defineInRange("asteroidEntityifyMaxLoaded", 16, 1, 512);
+                    .defineInRange("asteroidEntityifyMaxLoaded", 24, 1, 512);
 
             asteroidEntityifyLoadIntervalTicks = builder.comment(
                     "Throttle: ticks between two materialisation rounds. Materialising one asteroid costs tens to hundreds " +
@@ -266,6 +270,29 @@ public class SpaceSimulationConfig {
             asteroidSpinDegPerSecond = builder.comment(
                     "Asteroid self-rotation in degrees per second (20 ticks = 1 second). 0 disables the spin.")
                     .defineInRange("asteroidSpinDegPerSecond", 3.0, 0.0, 3600.0);
+
+            subLevelInteractionLagCompensation = builder.comment(
+                    "Lag compensation for block interactions on Sable sub-levels (mining and placing). " +
+                            "The server's authoritative player position always trails the client's predicted one by the " +
+                            "prediction pipeline depth; at 2.4 blocks/tick that is several blocks, which the server-side " +
+                            "interaction range check (Player#canInteractWithBlock, 4.5 + 1.0 blocks) counted as real " +
+                            "distance and rejected. Without this the block visually breaks on the client and is then " +
+                            "restored by the server's block update. " +
+                            "When enabled, a failed check is retried from the player's own point of view: the client's last " +
+                            "reported position (vanilla ServerboundMovePlayerPacket, accepted only while fresh and within " +
+                            "the deviation limit below) is used as the eye position, together with the asteroid's " +
+                            "analytically evaluated pose for the current and the previous two ticks (the client renders " +
+                            "Sable's interpolated pose, which trails the server pose). " +
+                            "It only ever grants an interaction, never denies one. Set to false to restore the raw check.")
+                    .define("subLevelInteractionLagCompensation", true);
+
+            subLevelInteractionLagTicks = builder.comment(
+                    "Deviation limit for the client's reported position, expressed in ticks of travel at the flight " +
+                            "speed cap (10 blocks/tick): a report is trusted only while it is no further than " +
+                            "subLevelInteractionLagTicks * 10 blocks from the server's authoritative position, and no " +
+                            "older than 20 ticks. Larger values tolerate faster flight and worse connections; " +
+                            "0 disables the compensation entirely.")
+                    .defineInRange("subLevelInteractionLagTicks", 4, 0, 40);
 
         builder.pop();
 

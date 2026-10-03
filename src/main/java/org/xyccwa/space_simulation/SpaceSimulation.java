@@ -79,7 +79,15 @@ public class SpaceSimulation {
         NeoForge.EVENT_BUS.addListener(AsteroidProximityService::tick);
         // 小行星实体化：自动窗口（强载半径内自动实体化 / 离开自动卸载）+ 每 tick 位姿驱动
         NeoForge.EVENT_BUS.addListener(org.xyccwa.space_simulation.asteroid.entity.AsteroidEntityifyService::tick);
-        // 停服前清空活动小行星子层级，避免它们被存档成跨会话残留
+        // 小行星持久化：玩家在子层级 plot 上挖掘/放置（或爆炸）→ 标记该颗为"已改动"，
+        // 卸载时它才会走 sable holding 落盘、并在下次进入时取回改动后的方块
+        NeoForge.EVENT_BUS.addListener(
+                org.xyccwa.space_simulation.asteroid.entity.AsteroidEditTracker::onBlockBreak);
+        NeoForge.EVENT_BUS.addListener(
+                org.xyccwa.space_simulation.asteroid.entity.AsteroidEditTracker::onBlockPlace);
+        NeoForge.EVENT_BUS.addListener(
+                org.xyccwa.space_simulation.asteroid.entity.AsteroidEditTracker::onExplosion);
+        // 停服前把已改动的小行星落盘、其余卸载，并补存持久化台账
         NeoForge.EVENT_BUS.addListener(
                 org.xyccwa.space_simulation.asteroid.entity.AsteroidEntityifyService::onServerStopping);
         // 低频性能统计（默认每 60 秒一行）：tick 计算耗时 avg/max、实体/区块/小行星数、堆内存

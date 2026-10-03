@@ -18,6 +18,12 @@
     "space_simulation:phyllosilicate_ore",
     "space_simulation:carbonate_ore",
     "space_simulation:troilite_ore",
-    "space_simulation:magnetite_ore"
+    "space_simulation:magnetite_ore",
+    "space_simulation:cobaltite_ore",
+    "space_simulation:spodumene_ore",
+    "space_simulation:zircon_ore",
+    "space_simulation:monazite_ore",
+    "space_simulation:uraninite_ore",
+    "space_simulation:thorite_ore"
   ]
 }

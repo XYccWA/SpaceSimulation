@@ -42,6 +42,14 @@ public class SpaceSimulationEnUsLangProvider extends LanguageProvider {
         add(SpaceSimulationBlock.TROILITE_ORE.get(), "Troilite Ore");
         add(SpaceSimulationBlock.MAGNETITE_ORE.get(), "Magnetite Ore");
 
+// ========== New ores (6, tech-tree chain gaps) ==========
+        add(SpaceSimulationBlock.COBALTITE_ORE.get(), "Cobaltite Ore");
+        add(SpaceSimulationBlock.SPODUMENE_ORE.get(), "Spodumene Ore");
+        add(SpaceSimulationBlock.ZIRCON_ORE.get(), "Zircon Ore");
+        add(SpaceSimulationBlock.MONAZITE_ORE.get(), "Monazite Ore");
+        add(SpaceSimulationBlock.URANINITE_ORE.get(), "Uraninite Ore");
+        add(SpaceSimulationBlock.THORITE_ORE.get(), "Thorite Ore");
+
         add(SpaceSimulationItem.DUST.get(), "DUST");
 // 金属矿砂
         add(SpaceSimulationItem.CHALCOCITE_SAND.get(), "Chalcocite Sand");
@@ -69,6 +77,41 @@ public class SpaceSimulationEnUsLangProvider extends LanguageProvider {
         add(SpaceSimulationItem.TROILITE_SAND.get(), "Troilite Sand");
         add(SpaceSimulationItem.MAGNETITE_SAND.get(), "Magnetite Sand");
 
+// New ore sands (tech-tree chain gaps)
+        add(SpaceSimulationItem.COBALTITE_SAND.get(), "Cobaltite Sand");
+        add(SpaceSimulationItem.SPODUMENE_SAND.get(), "Spodumene Sand");
+        add(SpaceSimulationItem.ZIRCON_SAND.get(), "Zircon Sand");
+        add(SpaceSimulationItem.MONAZITE_SAND.get(), "Monazite Sand");
+        add(SpaceSimulationItem.URANINITE_SAND.get(), "Uraninite Sand");
+        add(SpaceSimulationItem.THORITE_SAND.get(), "Thorite Sand");
+
+// Ore powders
+        add(SpaceSimulationItem.CHALCOCITE_POWDER.get(), "Chalcocite Powder");
+        add(SpaceSimulationItem.KAMACITE_POWDER.get(), "Kamacite Powder");
+        add(SpaceSimulationItem.TAENITE_POWDER.get(), "Taenite Powder");
+        add(SpaceSimulationItem.CHROMITE_POWDER.get(), "Chromite Powder");
+        add(SpaceSimulationItem.ILMENITE_POWDER.get(), "Ilmenite Powder");
+        add(SpaceSimulationItem.FORSTERITE_POWDER.get(), "Forsterite Powder");
+        add(SpaceSimulationItem.WOLFRAMITE_POWDER.get(), "Wolframite Powder");
+        add(SpaceSimulationItem.COLUMBITE_POWDER.get(), "Columbite Powder");
+        add(SpaceSimulationItem.MOLYBDENITE_POWDER.get(), "Molybdenite Powder");
+        add(SpaceSimulationItem.TANTALITE_POWDER.get(), "Tantalite Powder");
+        add(SpaceSimulationItem.RHENIITE_POWDER.get(), "Rheniite Powder");
+        add(SpaceSimulationItem.OLIVINE_POWDER.get(), "Olivine Powder");
+        add(SpaceSimulationItem.PYROXENE_POWDER.get(), "Pyroxene Powder");
+        add(SpaceSimulationItem.PLAGIOCLASE_POWDER.get(), "Plagioclase Powder");
+        add(SpaceSimulationItem.QUARTZ_POWDER.get(), "Quartz Powder");
+        add(SpaceSimulationItem.CARBONACEOUS_POWDER.get(), "Carbonaceous Powder");
+        add(SpaceSimulationItem.PHYLLOSILICATE_POWDER.get(), "Phyllosilicate Powder");
+        add(SpaceSimulationItem.CARBONATE_POWDER.get(), "Carbonate Powder");
+        add(SpaceSimulationItem.TROILITE_POWDER.get(), "Troilite Powder");
+        add(SpaceSimulationItem.MAGNETITE_POWDER.get(), "Magnetite Powder");
+        add(SpaceSimulationItem.COBALTITE_POWDER.get(), "Cobaltite Powder");
+        add(SpaceSimulationItem.SPODUMENE_POWDER.get(), "Spodumene Powder");
+        add(SpaceSimulationItem.ZIRCON_POWDER.get(), "Zircon Powder");
+        add(SpaceSimulationItem.MONAZITE_POWDER.get(), "Monazite Powder");
+        add(SpaceSimulationItem.URANINITE_POWDER.get(), "Uraninite Powder");
+        add(SpaceSimulationItem.THORITE_POWDER.get(), "Thorite Powder");
 // ========== 金属单质锭 ==========
         add(SpaceSimulationItem.COPPER_INGOT.get(), "Copper Ingot");
         add(SpaceSimulationItem.IRON_INGOT.get(), "Iron Ingot");
@@ -93,7 +136,7 @@ public class SpaceSimulationEnUsLangProvider extends LanguageProvider {
         add(SpaceSimulationItem.GH4061_ALLOY_INGOT.get(), "GH4061 Alloy Ingot");
 
 
-        add("itemGroup.space_simulation.creative_tab","Space Simulation");
+        add("itemGroup.space_simulation.ore.creative_tab","Space Simulation - Ore");
 
         addDeathMessage("high_g_force", "%s was crushed by extreme G-forces");
         addDeathMessage("high_g_force.player", "%s was crushed by extreme G-forces while trying to escape %s");

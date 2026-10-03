@@ -84,6 +84,14 @@ public final class AsteroidCommand {
                                                 LongArgumentType.getLong(ctx, "index")))))
                         .then(Commands.literal("entity")
                                 .executes(ctx -> cmd.entity(ctx.getSource())))
+                        .then(Commands.literal("persist")
+                                .executes(ctx -> cmd.persist(ctx.getSource(), -1L))
+                                .then(Commands.argument("index", LongArgumentType.longArg(0L))
+                                        .executes(ctx -> cmd.persist(ctx.getSource(),
+                                                LongArgumentType.getLong(ctx, "index")))
+                                        .then(Commands.literal("unload")
+                                                .executes(ctx -> cmd.persistUnload(ctx.getSource(),
+                                                        LongArgumentType.getLong(ctx, "index"))))))
                         .then(Commands.literal("reload")
                                 .executes(ctx -> cmd.reload(ctx.getSource())))
                         .then(Commands.literal("selftest")
@@ -499,6 +507,71 @@ public final class AsteroidCommand {
                     inst.sub.getTrackingPlayers().size(), inst.sub.isRemoved()));
             shown++;
         }
+        return 1;
+    }
+
+    /** 小行星持久化台账：无参看总览，带编号看单颗。 */
+    private int persist(CommandSourceStack source, long index) {
+        ServerLevel level = source.getLevel();
+        var data = org.xyccwa.space_simulation.asteroid.entity.AsteroidPersistence.getOrLoad(level);
+        send(source, String.format(Locale.ROOT,
+                "[小行星 持久化] 维度 %s：已改动 %,d 颗 · 已记副本指针 %,d 个 · 当前活动 %d 颗",
+                level.dimension().location(), data.changedIds().size(), data.storedCount(),
+                AsteroidEntityifier.count(level)));
+        if (index < 0L) {
+            send(source, "  只有被玩家改动过的小行星才落盘保留；未改动的卸载即丢弃，重新接近时按结构模板重建。");
+            send(source, "  用法：/asteroid persist <编号>（看单颗）· /asteroid persist <编号> unload（手动卸载，验证落盘与取回）");
+            if (!data.changedIds().isEmpty()) {
+                StringBuilder sb = new StringBuilder("  已改动编号：");
+                int n = 0;
+                for (long id : data.changedIds()) {
+                    if (n >= 16) {
+                        sb.append(" …");
+                        break;
+                    }
+                    sb.append(n == 0 ? "" : ", ").append(String.format(Locale.ROOT, "%,d", id));
+                    n++;
+                }
+                send(source, sb.toString());
+            }
+            return 1;
+        }
+        boolean live = AsteroidEntityifier.isMaterialized(level, index);
+        var stored = data.stored(index);
+        send(source, String.format(Locale.ROOT, "  #%,d 已改动=%s · 当前活动=%s · 副本指针=%s",
+                index, data.isChanged(index) ? "是" : "否", live ? "是" : "否",
+                stored == null ? "无" : String.format(Locale.ROOT,
+                        "chunk(%,d,%,d) 数据文件 %d 槽 %d · uuid %s",
+                        stored.chunkX(), stored.chunkZ(), stored.storageIndex(), stored.subLevelIndex(),
+                        stored.uuid())));
+        if (live) {
+            var inst = AsteroidEntityifier.get(level, index);
+            if (inst != null) {
+                send(source, String.format(Locale.ROOT, "  plot 包围盒 %s · 名字 %s",
+                        inst.sub.getPlot().getBoundingBox(), inst.sub.getName()));
+            }
+        }
+        return 1;
+    }
+
+    /** 手动卸载一颗小行星（已改动的走落盘链路），用于实测"卸载 → 重新接近 → 改动仍在"。 */
+    private int persistUnload(CommandSourceStack source, long index) {
+        if (!checkMaterializable(source)) {
+            return 0;
+        }
+        ServerLevel level = source.getLevel();
+        var data = org.xyccwa.space_simulation.asteroid.entity.AsteroidPersistence.getOrLoad(level);
+        boolean changed = data.isChanged(index);
+        if (!AsteroidEntityifier.dematerialize(level, index)) {
+            send(source, String.format(Locale.ROOT, "[小行星 持久化] #%,d 当前未实体化，无需卸载", index));
+            return 1;
+        }
+        var stored = data.stored(index);
+        send(source, String.format(Locale.ROOT, "[小行星 持久化] #%,d 已卸载（已改动=%s）· 副本指针=%s",
+                index, changed ? "是" : "否", stored));
+        send(source, changed
+                ? "  已改动 → 改动已落盘；重新接近会自动取回（也可 /asteroid spawn " + index + " 立即取回）"
+                : "  未改动 → 内容已丢弃，重新接近时按结构模板重建（内容等价）");
         return 1;
     }
 

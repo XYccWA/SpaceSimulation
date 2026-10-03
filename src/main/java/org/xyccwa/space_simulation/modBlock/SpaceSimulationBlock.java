@@ -128,6 +128,39 @@ public class SpaceSimulationBlock {
                     .strength(6.0f, 6.5f)));
 
 
+// ========== 新增矿石（6种，科技树断链补齐） ==========
+
+    /** 辉砷钴矿石 CoAsS - 钴矿，中硬硫砷化物 */
+    public static final DeferredBlock<Block> COBALTITE_ORE = registerBlocks(
+            "cobaltite_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(5.0f, 5.5f)));
+
+    /** 锂辉石矿石 LiAlSi2O6 - 锂矿，硬而性脆的链状硅酸盐 */
+    public static final DeferredBlock<Block> SPODUMENE_ORE = registerBlocks(
+            "spodumene_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(6.5f, 4.0f)));
+
+    /** 锆石矿石 ZrSiO4 - 锆/铪矿，硬度高、耐磨 */
+    public static final DeferredBlock<Block> ZIRCON_ORE = registerBlocks(
+            "zircon_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(7.5f, 6.0f)));
+
+    /** 独居石矿石 (Ce,La,Nd,Th)PO4 - 稀土/钍矿，磷酸盐，中等硬度 */
+    public static final DeferredBlock<Block> MONAZITE_ORE = registerBlocks(
+            "monazite_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(5.0f, 4.5f)));
+
+    /** 沥青铀矿石 UO2 - 铀矿，致密氧化物，中等偏硬 */
+    public static final DeferredBlock<Block> URANINITE_ORE = registerBlocks(
+            "uraninite_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(5.5f, 6.0f)));
+
+    /** 钍石矿石 ThSiO4 - 钍矿，硅酸盐，中等硬度 */
+    public static final DeferredBlock<Block> THORITE_ORE = registerBlocks(
+            "thorite_ore", () -> new Block(BlockBehaviour.Properties.of()
+                    .strength(5.0f, 5.5f)));
+
+
     private static <T extends Block> void registerBlockItems(String name,DeferredBlock<T> block){
         SpaceSimulationItem.ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties()));
     }

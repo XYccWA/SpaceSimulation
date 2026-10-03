@@ -60,9 +60,108 @@ public class SpaceSimulationItem {
     public static final DeferredItem<Item> MAGNETITE_SAND =
             ITEMS.register("magnetite_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
 
+    // ========== 新增矿砂（科技树断链补齐，6 种） ==========
+    /** 辉砷钴矿砂 CoAsS - 补钴（GH4061 合金必需），砷作副产 */
+    public static final DeferredItem<Item> COBALTITE_SAND =
+            ITEMS.register("cobaltite_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 锂辉石砂 LiAlSi2O6 - 补锂（电池、热控工质、聚变氚增殖） */
+    public static final DeferredItem<Item> SPODUMENE_SAND =
+            ITEMS.register("spodumene_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 锆石砂 ZrSiO4 - 补锆（核包壳）与铪（超高温部件） */
+    public static final DeferredItem<Item> ZIRCON_SAND =
+            ITEMS.register("zircon_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 独居石砂 (Ce,La,Nd,Th)PO4 - 补稀土（钕铁硼永磁、激光晶体）与钍 */
+    public static final DeferredItem<Item> MONAZITE_SAND =
+            ITEMS.register("monazite_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 沥青铀矿砂 UO2 - 裂变燃料（铀） */
+    public static final DeferredItem<Item> URANINITE_SAND =
+            ITEMS.register("uraninite_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 钍石砂 ThSiO4 - 增殖燃料（钍） */
+    public static final DeferredItem<Item> THORITE_SAND =
+            ITEMS.register("thorite_sand", () -> new Item(new Item.Properties().stacksTo(1000)));
 
 
 
+
+// ========== 矿粉（矿砂的研磨产物，尖锥粉堆贴图） ==========
+    /** 辉铜矿粉 */
+    public static final DeferredItem<Item> CHALCOCITE_POWDER =
+            ITEMS.register("chalcocite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 铁纹矿粉 */
+    public static final DeferredItem<Item> KAMACITE_POWDER =
+            ITEMS.register("kamacite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 镍纹矿粉 */
+    public static final DeferredItem<Item> TAENITE_POWDER =
+            ITEMS.register("taenite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 铬铁矿粉 */
+    public static final DeferredItem<Item> CHROMITE_POWDER =
+            ITEMS.register("chromite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 钛铁矿粉 */
+    public static final DeferredItem<Item> ILMENITE_POWDER =
+            ITEMS.register("ilmenite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 镁橄榄石粉 */
+    public static final DeferredItem<Item> FORSTERITE_POWDER =
+            ITEMS.register("forsterite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 钨锰矿粉 */
+    public static final DeferredItem<Item> WOLFRAMITE_POWDER =
+            ITEMS.register("wolframite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 铌铁矿粉 */
+    public static final DeferredItem<Item> COLUMBITE_POWDER =
+            ITEMS.register("columbite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 辉钼矿粉 */
+    public static final DeferredItem<Item> MOLYBDENITE_POWDER =
+            ITEMS.register("molybdenite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 钽铁矿粉 */
+    public static final DeferredItem<Item> TANTALITE_POWDER =
+            ITEMS.register("tantalite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 辉铼矿粉 */
+    public static final DeferredItem<Item> RHENIITE_POWDER =
+            ITEMS.register("rheniite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 橄榄石粉 */
+    public static final DeferredItem<Item> OLIVINE_POWDER =
+            ITEMS.register("olivine_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 辉石粉 */
+    public static final DeferredItem<Item> PYROXENE_POWDER =
+            ITEMS.register("pyroxene_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 斜长石粉 */
+    public static final DeferredItem<Item> PLAGIOCLASE_POWDER =
+            ITEMS.register("plagioclase_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 石英粉 */
+    public static final DeferredItem<Item> QUARTZ_POWDER =
+            ITEMS.register("quartz_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 碳质球粒粉 */
+    public static final DeferredItem<Item> CARBONACEOUS_POWDER =
+            ITEMS.register("carbonaceous_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 层状硅酸盐粉 */
+    public static final DeferredItem<Item> PHYLLOSILICATE_POWDER =
+            ITEMS.register("phyllosilicate_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 碳酸盐粉 */
+    public static final DeferredItem<Item> CARBONATE_POWDER =
+            ITEMS.register("carbonate_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 陨硫铁矿粉 */
+    public static final DeferredItem<Item> TROILITE_POWDER =
+            ITEMS.register("troilite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 磁铁矿粉 */
+    public static final DeferredItem<Item> MAGNETITE_POWDER =
+            ITEMS.register("magnetite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 辉砷钴矿粉 */
+    public static final DeferredItem<Item> COBALTITE_POWDER =
+            ITEMS.register("cobaltite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 锂辉石粉 */
+    public static final DeferredItem<Item> SPODUMENE_POWDER =
+            ITEMS.register("spodumene_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 锆石粉 */
+    public static final DeferredItem<Item> ZIRCON_POWDER =
+            ITEMS.register("zircon_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 独居石粉 */
+    public static final DeferredItem<Item> MONAZITE_POWDER =
+            ITEMS.register("monazite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 沥青铀矿粉 */
+    public static final DeferredItem<Item> URANINITE_POWDER =
+            ITEMS.register("uraninite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
+    /** 钍石粉 */
+    public static final DeferredItem<Item> THORITE_POWDER =
+            ITEMS.register("thorite_powder", () -> new Item(new Item.Properties().stacksTo(1000)));
 // ========== 金属单质锭 ==========
     /** 铜锭 */
     public static final DeferredItem<Item> COPPER_INGOT =

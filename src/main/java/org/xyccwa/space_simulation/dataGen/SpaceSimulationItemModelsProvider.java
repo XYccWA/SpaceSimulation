@@ -14,7 +14,64 @@ public class SpaceSimulationItemModelsProvider extends ItemModelProvider {
     @Override
     protected void registerModels() {
 
+// ========== 浮土 ==========
+        basicItem(SpaceSimulationItem.DUST.get());                      // 浮土
 
+// ========== 矿砂 ==========
+        basicItem(SpaceSimulationItem.CHALCOCITE_SAND.get());           // 辉铜矿砂
+        basicItem(SpaceSimulationItem.KAMACITE_SAND.get());             // 铁纹石砂
+        basicItem(SpaceSimulationItem.TAENITE_SAND.get());              // 镍纹石砂
+        basicItem(SpaceSimulationItem.CHROMITE_SAND.get());             // 铬铁矿砂
+        basicItem(SpaceSimulationItem.ILMENITE_SAND.get());             // 钛铁矿砂
+        basicItem(SpaceSimulationItem.FORSTERITE_SAND.get());           // 镁橄榄石砂
+        basicItem(SpaceSimulationItem.WOLFRAMITE_SAND.get());           // 钨锰铁矿砂
+        basicItem(SpaceSimulationItem.COLUMBITE_SAND.get());            // 铌铁矿砂
+        basicItem(SpaceSimulationItem.MOLYBDENITE_SAND.get());          // 辉钼矿砂
+        basicItem(SpaceSimulationItem.TANTALITE_SAND.get());            // 钽铁矿砂
+        basicItem(SpaceSimulationItem.RHENIITE_SAND.get());             // 辉铼矿砂
+        basicItem(SpaceSimulationItem.OLIVINE_SAND.get());              // 橄榄石砂
+        basicItem(SpaceSimulationItem.PYROXENE_SAND.get());             // 辉石砂
+        basicItem(SpaceSimulationItem.PLAGIOCLASE_SAND.get());          // 斜长石砂
+        basicItem(SpaceSimulationItem.QUARTZ_SAND.get());               // 石英砂
+        basicItem(SpaceSimulationItem.CARBONACEOUS_SAND.get());         // 碳质球粒砂
+        basicItem(SpaceSimulationItem.PHYLLOSILICATE_SAND.get());       // 层状硅酸盐砂
+        basicItem(SpaceSimulationItem.CARBONATE_SAND.get());            // 碳酸盐砂
+        basicItem(SpaceSimulationItem.TROILITE_SAND.get());             // 陨硫铁砂
+        basicItem(SpaceSimulationItem.MAGNETITE_SAND.get());            // 磁铁矿砂
+        basicItem(SpaceSimulationItem.COBALTITE_SAND.get());            // 辉砷钴矿砂
+        basicItem(SpaceSimulationItem.SPODUMENE_SAND.get());            // 锂辉石砂
+        basicItem(SpaceSimulationItem.ZIRCON_SAND.get());               // 锆石砂
+        basicItem(SpaceSimulationItem.MONAZITE_SAND.get());             // 独居石砂
+        basicItem(SpaceSimulationItem.URANINITE_SAND.get());            // 沥青铀矿砂
+        basicItem(SpaceSimulationItem.THORITE_SAND.get());              // 钍石砂
+
+// ========== 矿粉 ==========
+        basicItem(SpaceSimulationItem.CHALCOCITE_POWDER.get());     // 辉铜矿粉
+        basicItem(SpaceSimulationItem.KAMACITE_POWDER.get());       // 铁纹矿粉
+        basicItem(SpaceSimulationItem.TAENITE_POWDER.get());        // 镍纹矿粉
+        basicItem(SpaceSimulationItem.CHROMITE_POWDER.get());       // 铬铁矿粉
+        basicItem(SpaceSimulationItem.ILMENITE_POWDER.get());       // 钛铁矿粉
+        basicItem(SpaceSimulationItem.FORSTERITE_POWDER.get());     // 镁橄榄石粉
+        basicItem(SpaceSimulationItem.WOLFRAMITE_POWDER.get());     // 钨锰矿粉
+        basicItem(SpaceSimulationItem.COLUMBITE_POWDER.get());      // 铌铁矿粉
+        basicItem(SpaceSimulationItem.MOLYBDENITE_POWDER.get());    // 辉钼矿粉
+        basicItem(SpaceSimulationItem.TANTALITE_POWDER.get());      // 钽铁矿粉
+        basicItem(SpaceSimulationItem.RHENIITE_POWDER.get());       // 辉铼矿粉
+        basicItem(SpaceSimulationItem.OLIVINE_POWDER.get());        // 橄榄石粉
+        basicItem(SpaceSimulationItem.PYROXENE_POWDER.get());       // 辉石粉
+        basicItem(SpaceSimulationItem.PLAGIOCLASE_POWDER.get());    // 斜长石粉
+        basicItem(SpaceSimulationItem.QUARTZ_POWDER.get());         // 石英粉
+        basicItem(SpaceSimulationItem.CARBONACEOUS_POWDER.get());   // 碳质球粒粉
+        basicItem(SpaceSimulationItem.PHYLLOSILICATE_POWDER.get()); // 层状硅酸盐粉
+        basicItem(SpaceSimulationItem.CARBONATE_POWDER.get());      // 碳酸盐粉
+        basicItem(SpaceSimulationItem.TROILITE_POWDER.get());       // 陨硫铁矿粉
+        basicItem(SpaceSimulationItem.MAGNETITE_POWDER.get());      // 磁铁矿粉
+        basicItem(SpaceSimulationItem.COBALTITE_POWDER.get());      // 辉砷钴矿粉
+        basicItem(SpaceSimulationItem.SPODUMENE_POWDER.get());      // 锂辉石粉
+        basicItem(SpaceSimulationItem.ZIRCON_POWDER.get());         // 锆石粉
+        basicItem(SpaceSimulationItem.MONAZITE_POWDER.get());       // 独居石粉
+        basicItem(SpaceSimulationItem.URANINITE_POWDER.get());      // 沥青铀矿粉
+        basicItem(SpaceSimulationItem.THORITE_POWDER.get());        // 钍石粉
 // ========== 金属单质锭 ==========
         basicItem(SpaceSimulationItem.COPPER_INGOT.get());              // 铜锭
         basicItem(SpaceSimulationItem.IRON_INGOT.get());                // 铁锭

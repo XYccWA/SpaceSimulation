@@ -4,7 +4,7 @@
 
 **Turn the Overworld into space.** A **NeoForge 1.21.1** mod: quaternion 6DOF flight physics in a zero-gravity star system, a sun at the world centre, real Newtonian orbital mechanics, tens of millions of procedurally generated asteroids, and a materials chain from space ore to aerospace alloys.
 
-`Minecraft 1.21.1` · `NeoForge 21.1.234` · `v0.3.1-beta` · `GPL-3.0`
+`Minecraft 1.21.1` · `NeoForge 21.1.234` · `v0.3.2-beta` · `GPL-3.0`
 
 ## Features
 
@@ -43,23 +43,30 @@ The Overworld is redefined as a space dimension: no skylight, no gravity, no dra
 
 ### Procedural asteroid belts
 
-A **zero-storage, deterministic, datapack-driven** asteroid system:
+A **zero-storage, deterministic, datapack-driven** asteroid system (only asteroids you have modified are ever written to disk):
 
 - Every asteroid has an **index identity**, and its **Keplerian orbital elements** are derived from the seed and that index with `SplitMix64` — O(1) on demand. The same index yields the same orbit across sessions and machines, with no save-file cost whatsoever.
 - Motion follows Kepler's laws (`T = 2π√(a³/μ)`, `E − e·sinE = M`). By default `mu` follows the player's gravitational parameter (`asteroidMuFollowPlayerOrbital`), so the belts live on the **same speed scale as your own orbit** — the circular speed at the inner belt's inner edge is the player's circular speed at that radius (2.5 blocks/tick, 50 m/s), so you can fly alongside an asteroid, slow down and land on it.
 - **Belts** are defined by datapack JSON (`asteroid_belt` / `asteroid_type`): an inner belt at 1,000,000–1,400,000 blocks (carbonaceous/siliceous dominated) and an outer belt at 1,600,000–2,000,000 blocks (metal/rare-metal dominated), both between Y −8000 and 9000, each with its own density and **weighted types**. **15 types × 6 structure variants = 90 structure NBTs**, roughly 30 million asteroids in total (about 13.6M in the inner belt by mean spacing, a fixed 17M in the outer belt).
 - **Proximity loading**: each tick anchors on online players, rebuilding the preload index frame-by-frame (50,000-block preload radius) while strong-loading within 2,000 blocks — without blocking the main thread.
-- **Materialisation**: asteroids within the default 2,000 blocks are assembled as **Sable sub-levels** — real structures you can see, land on and mine (cap of 16, one round per 40 ticks, 200-tick grace before unloading, spinning at 3°/s). Without Sable installed the system degrades to pure point masses.
+- **Materialisation**: asteroids within the default **1,000 blocks** are assembled as **Sable sub-levels** — real structures you can see, land on and mine (cap of **24**, one round per 40 ticks, 200-tick grace before unloading, spinning at 3°/s). Without Sable installed the system degrades to pure point masses.
+- **Modification persistence**: once you mine, place or blow up a block on an asteroid, that asteroid is flagged as "changed"; on unload it is stored through Sable's native sub-level storage with a pointer recorded in a ledger, and on approach it is re-adopted by name, restored from the ledger pointer, or found by a full scan — you get **your modified blocks back**, not the original template. Unmodified asteroids are still rebuilt instantly and cost no save space.
+- **Block interaction lag compensation**: the server's eye position inherently trails the client by 1–3 ticks, which used to make "the crosshair is on the block but mining/placing does nothing" happen while flying past an asteroid at speed. The server now uses the client-reported position for the geometry, clamps the deviation against the authoritative position, and picks the smallest distance across three analytic poses (current / 1 tick back / 2 ticks back) — it only ever allows, never denies (`subLevelInteractionLagCompensation`, on by default).
 
 ### Materials
 
-A smelting chain of asteroid ore → ore sand → metal ingot → aerospace alloy ingot.
+An asteroid ore → ore sand → powder → metal ingot → aerospace alloy ingot chain (**the processing steps are not wired up yet — see Known issues**).
 
-#### Ore sands (20)
+#### Ore blocks (26)
 
-- **Metallic**: chalcocite, kamacite, taenite, chromite, ilmenite, forsterite, wolframite, columbite, molybdenite, tantalite, rheniite
+The original 20 ores plus 6 new ones added to close the critical gaps: **cobaltite** (cobalt), **spodumene** (lithium), **zircon** (zirconium), **monazite** (rare earths), **uraninite** (uranium) and **thorite** (thorium). Ore blocks now drop themselves — no more direct ore-sand drops; sands are meant to come from crushing/beneficiation later.
+
+#### Ore sands and powders (26 each)
+
+- **Metallic**: chalcocite, kamacite, taenite, chromite, ilmenite, forsterite, wolframite, columbite, molybdenite, tantalite, rheniite, cobaltite, spodumene, zircon, monazite, uraninite, thorite
 - **Siliceous**: olivine, pyroxene, plagioclase, quartz
 - **Carbonaceous**: carbonaceous, phyllosilicate, carbonate, troilite, magnetite
+- Every ore has a matching sand and powder (52 items in total), with textures and models now complete.
 
 #### Metal ingots (13)
 
@@ -77,7 +84,8 @@ Iron–nickel, chromium–nickel–iron (Incoloy 890), tungsten–rhenium, nicke
 ### Sable / Create Aeronautics integration
 
 - **Plotyard inside the sun**: Sable's sub-level block storage (plotyard) grid is placed inside the sun sphere so physics coordinates stay small (f32 precision improves from roughly 2 blocks to roughly 4 mm).
-- **Rapier floating-origin rebasing**: world coordinates handed to the native physics engine are shifted by a per-scene origin, while Java-side poses, rendering and networking stay in world-frame doubles — sub-level physics stays accurate millions of blocks out (can be disabled entirely in the `Sable Rapier Fix` config). Re-uploads of the global chunks affected by a rebase are spread across physics frames (10 ms budget per frame), so a rebase no longer stalls the main thread.
+- **Rapier floating-origin rebasing**: world coordinates handed to the native physics engine are shifted by a per-scene origin, while Java-side poses, rendering and networking stay in world-frame doubles — sub-level physics stays accurate millions of blocks out (can be disabled entirely in the `Sable Rapier Fix` config). Re-uploads of the global chunks affected by a rebase are spread across physics frames (10 ms per frame), so a rebase no longer stalls the main thread.
+- **Sub-level persistence**: modified asteroids reuse Sable's own holding storage (`<world>/sublevels/*.sls`) instead of a bespoke save format.
 
 ## Commands
 
@@ -93,6 +101,8 @@ All commands require permission level 2.
 | `/asteroid spawn <index>` | Materialise one asteroid as a Sable sub-level, echoing its staging area and logical pose |
 | `/asteroid tp <index>` | Materialise and teleport next to that asteroid (80 blocks radially) |
 | `/asteroid entity` | Materialisation status: count, cap, per-asteroid plot and bounding box |
+| `/asteroid persist [index]` | Persistence ledger: changed asteroids and their stored-copy pointers |
+| `/asteroid persist <index> unload` | Force-unload that asteroid and store it (used to verify recovery) |
 | `/asteroid reload` | Reload the asteroid datapack and echo parse diagnostics |
 | `/orbit info` | Your orbital state: mu, radius, speed, elements, period, apsides |
 | `/orbit circular <radius> [inclinationDeg]` | Enter a circular orbit (0° = equatorial, 90° = polar) |
@@ -115,8 +125,9 @@ The config file is `config/space_simulation-startup.toml`. Common options:
 | `asteroidMuFollowPlayerOrbital` | `true` | Asteroid orbits follow the player's μ (otherwise the independent `asteroidInnerOrbitPeriodTicks` is used) |
 | `asteroidInnerOrbitPeriodTicks` | 62830000 | Only used when the above is `false`: period at the inner belt's inner radius |
 | `asteroidEntityifyEnabled` | `true` | Materialise nearby asteroids as Sable sub-levels |
-| `asteroidEntityifyRadius` / `MaxLoaded` / `LoadIntervalTicks` | 2000 / 16 / 40 | Materialisation radius, simultaneous cap, load throttling |
+| `asteroidEntityifyRadius` / `MaxLoaded` / `LoadIntervalTicks` | 1000 / 24 / 40 | Materialisation radius, simultaneous cap, load throttling |
 | `asteroidSpinDegPerSecond` | `3.0` | Asteroid self-rotation; 0 disables it |
+| `subLevelInteractionLagCompensation` / `subLevelInteractionLagTicks` | `true` / `4` | Sub-level block interaction lag compensation, and how many ticks the client position may lead the authoritative one (0 disables compensation) |
 | `rapierRebaseEnabled` | `true` | Rapier floating-origin rebasing (long-range precision fix) |
 | `builtInShaderPack` / `autoEnableShaderPack` | `true` | Deploy / auto-enable the built-in Iris shader pack |
 | `sustainedGThreshold` / `highGravityAccelerationThreshold` | 98.1 / 294.3 | Sustained and instant overload damage thresholds (m/s²) |
@@ -140,7 +151,7 @@ Run `/asteroid reload` (or `/reload`) to apply changes immediately.
 |---|---|---|
 | NeoForge 21.1.234 | Required | Mod framework |
 | [Hitbox API](https://www.curseforge.com/minecraft/mc-mods/hitbox-api) 1.0.0+ | Required | Rotated OBB hitboxes |
-| Sable 2.0.5+ (Create Aeronautics) | Optional | Asteroid materialisation as sub-levels, plotyard and long-range physics precision |
+| Sable 2.0.5+ (Create Aeronautics) | Optional | Asteroid materialisation as sub-levels, persistence, plotyard and long-range physics precision |
 | Iris 1.8.0+ (+ Sodium) | Optional | Radial sunlight and shadows from the built-in shader pack |
 
 ## Building
@@ -153,13 +164,13 @@ JDK 21 is required.
 ./gradlew runClient -PquickPlaySingleplayer=<world>   # load a singleplayer world directly
 ```
 
-Pushing a `v*` tag triggers the GitHub Actions build and publishes a Release.
+Pushing a `v*` tag triggers the GitHub Actions build, publishes a GitHub Release and (when the `CURSEFORGE_TOKEN` secret is configured) uploads to CurseForge automatically.
 
 ## Known issues
 
-- **The survival material chain is unfinished**: ore world generation and smelting recipes are not wired up yet, so materials are currently creative-only (highest-priority TODO).
-- **Ore sand items have no texture/model yet** (they show as black-and-purple blocks): all 20 `*_sand` items are registered and translated, but their textures and models are still missing; the 13 metal and 6 alloy ingots are complete.
+- **The survival material chain is unfinished**: ore world generation, the crushing/beneficiation steps and smelting recipes are not wired up yet — ore blocks only drop themselves, so sands, powders and ingots are currently creative-only (highest-priority TODO).
 - **Orbital tuning is still in progress**: μ, the initial-orbit band and the correction threshold are all configurable, and the speed scale and handling may still change.
+- **The tech tree is not implemented yet**: the full design (salvage-recovery tech tree, energy, real-fuel propulsion, vehicle weapons, the three asteroid states) lives in `docs/tech-tree-design.md`; this release only lands the ore-level groundwork.
 
 ## License
 

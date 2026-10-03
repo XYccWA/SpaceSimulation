@@ -40,3 +40,6 @@ repo/
 !**/src/**/repo/
 ### Local session / analysis leftovers ###
 .mnemon/
+
+### 本地临时目录（纹理生成脚本与预览、素材提取等） ###
+.tmp-*/

@@ -15,7 +15,10 @@
     "lighting.ThreadedLevelLightEngineMixin",
     "lighting.LightEngineMixin",
     "lighting.ChunkSkyLightSourcesMixin",
-    "sable.SubLevelContainerMixin"
+    "sable.SubLevelContainerMixin",
+    "sable.PlayerSubLevelInteractionMixin",
+    "sable.LevelChunkPersistenceMixin",
+    "sable.SubLevelPhysicsSystemMixin"
   ],
   "injectors": {
     "defaultRequire": 1

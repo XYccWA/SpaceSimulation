@@ -124,9 +124,10 @@ public final class AsteroidProximityMonitor {
             entered.get(b).clear();
             left.get(b).clear();
         }
-        int[][] tmp = prevRanges;
-        prevRanges = curRanges;
-        curRanges = tmp;
+        // 预载档（band0）区间表：curRanges 恒表示"最近一次刷新的区间"，任何 tick 读取都有效；
+        // prevRanges 只在刷新 tick 前保存上一版快照，专供区间 diff 出进入/离开事件。
+        // （旧实现每 tick 交换两个引用，而区间仅在刷新 tick 写入 —— 非刷新 tick 上
+        //   bandPreloadSet()/preloadRanges() 会回退到两次刷新前的缓冲，首个间隔内甚至是空的。）
         if (prevRanges.length != cells.length) prevRanges = new int[cells.length][];
         if (curRanges.length != cells.length) curRanges = new int[cells.length][];
         for (int i = 0; i < cells.length; i++) {
@@ -139,6 +140,12 @@ public final class AsteroidProximityMonitor {
 
         // 动态层：每环每档。预载档（band0）区间按间隔平移刷新（节流）；强载档每 tick。
         boolean preTick = tick % preloadIntervalTicks == 0;
+        if (preTick) {
+            // 刷新前把当前区间快照进 prev —— eventForBand0 随后用它做区间 diff
+            for (int ci = 0; ci < cells.length; ci++) {
+                System.arraycopy(curRanges[ci], 0, prevRanges[ci], 0, 5);
+            }
+        }
         for (int ci = 0; ci < cells.length; ci++) {
             long cellKey = cells[ci];
             double n = cellNs[ci];
@@ -287,8 +294,14 @@ public final class AsteroidProximityMonitor {
             cellNs = n2;
             cellKs = k2;
             cellBandWins = w2;
+            // 新索引的区间必须由下一个刷新 tick 写入：这里整体重分配为空区间，
+            // 防止"新旧 cells 数量恰好相同"时 bandPreloadSet() 继续返回旧索引位置的颗。
             curRanges = new int[cells.length][];
             prevRanges = new int[cells.length][];
+            for (int i = 0; i < cells.length; i++) {
+                curRanges[i] = new int[5];
+                prevRanges[i] = new int[]{0, -1, 0, -1, 0};
+            }
             building = false;
             built = true;
             firstAfterRebuild = true;

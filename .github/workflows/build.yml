@@ -24,6 +24,10 @@ env:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    # CurseForge 上传用的 API Token（仓库 Settings → Secrets and variables → Actions 里的
+    # CURSEFORGE_TOKEN）。未配置时第 10 步会被整体跳过，GitHub Release 不受任何影响。
+    env:
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
     steps:
       # 1. 签出代码
       #    fetch-depth: 0 —— 必须取完整历史，否则浅克隆里拿不到 tag 对象，
@@ -123,3 +127,42 @@ jobs:
             build/libs/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 10. 准备 CurseForge 用的 changelog：优先复用 tag 注释（RELEASE_NOTES.md），
+      #     取不到（例如 workflow_dispatch 手动触发）时退化为一句话 + GitHub Release 链接。
+      - name: Prepare CurseForge changelog
+        id: cf_notes
+        run: |
+          if [ -s RELEASE_NOTES.md ]; then
+            cp RELEASE_NOTES.md CURSEFORGE_CHANGELOG.md
+          else
+            {
+              echo "## ${{ steps.get_mod_info.outputs.release_name }}"
+              echo
+              echo "完整改动说明见 GitHub Release："
+              echo "https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_mod_info.outputs.mod_version }}"
+            } > CURSEFORGE_CHANGELOG.md
+          fi
+          {
+            echo 'body<<CF_CHANGELOG_EOF'
+            cat CURSEFORGE_CHANGELOG.md
+            echo 'CF_CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "CurseForge changelog: $(wc -c < CURSEFORGE_CHANGELOG.md) bytes"
+
+      # 11. 上传到 CurseForge（project 1720899；发行类型 beta；1.21.1 + NeoForge + Java 21）。
+      #     依赖仓库 Secret CURSEFORGE_TOKEN —— 未配置时本步被跳过（见 job 级 env 与 if）。
+      #     手动补传：Actions → 本 workflow → Run workflow（读 gradle.properties 的 mod_version）。
+      - name: Upload to CurseForge
+        if: env.CURSEFORGE_TOKEN != ''
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ env.CURSEFORGE_TOKEN }}
+          project_id: "1720899"
+          game_endpoint: minecraft
+          file_path: build/libs/${{ steps.get_mod_info.outputs.release_name }}.jar
+          display_name: ${{ steps.get_mod_info.outputs.release_name }}
+          game_versions: "1.21.1,NeoForge,Java 21"
+          release_type: beta
+          changelog_type: markdown
+          changelog: ${{ steps.cf_notes.outputs.body }}

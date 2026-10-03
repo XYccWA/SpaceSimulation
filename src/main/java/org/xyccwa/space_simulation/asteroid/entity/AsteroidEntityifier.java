@@ -6,20 +6,31 @@ import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.ticket.SubLevelLoadingTicketType;
 import dev.ryanhcode.sable.companion.math.BoundingBox3i;
+import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
 import dev.ryanhcode.sable.companion.math.Pose3d;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import dev.ryanhcode.sable.sublevel.SubLevel;
 import dev.ryanhcode.sable.sublevel.plot.ServerLevelPlot;
 import dev.ryanhcode.sable.sublevel.storage.SubLevelRemovalReason;
+import dev.ryanhcode.sable.sublevel.storage.holding.GlobalSavedSubLevelPointer;
+import dev.ryanhcode.sable.sublevel.storage.holding.SavedSubLevelPointer;
+import dev.ryanhcode.sable.sublevel.storage.holding.SubLevelHoldingChunk;
+import dev.ryanhcode.sable.sublevel.storage.holding.SubLevelHoldingChunkMap;
+import dev.ryanhcode.sable.sublevel.storage.region.SubLevelRegionFile;
+import dev.ryanhcode.sable.sublevel.storage.serialization.SubLevelData;
+import dev.ryanhcode.sable.sublevel.storage.serialization.SubLevelStorage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.Unit;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.core.Vec3i;
+import org.jetbrains.annotations.Nullable;
 import org.joml.Quaterniond;
 import org.joml.Vector3d;
 import org.xyccwa.space_simulation.SpaceSimulation;
@@ -27,6 +38,7 @@ import org.xyccwa.space_simulation.asteroid.AsteroidOrbit;
 import org.xyccwa.space_simulation.asteroid.AsteroidProximityService;
 import org.xyccwa.space_simulation.config.SpaceSimulationConfig;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,9 +62,17 @@ import java.util.Locale;
  * 此外 sable 每 tick 会把 globalBounds 的 Y 越出 {@code sub_level_remove_min/max} 的子层级直接删除，
  * 所以轨道竖直范围必须落在该窗口内 —— 该约束由 {@code AsteroidVerticalLimit} 在数据包层保证。
  *
- * <h2>持久化策略</h2>
- * 不落盘：离开窗口即 {@code removeSubLevel}，重新进入时按同一编号从结构模板重建。
- * 因此存档里不会堆积每个 5 万方块的结构副本，小行星也永远是"新"的。
+ * <h2>持久化策略（2026-10 起）</h2>
+ * <b>只有被玩家改动过的小行星才落盘</b>，判据是 {@link AsteroidPersistence} 里的改动标记：
+ * <ul>
+ *   <li><b>未改动</b>：卸载时直接 {@code removeSubLevel}，存档不堆积 5 万方块的结构副本，
+ *       再次进入时按同一编号从结构模板重建（内容与丢弃前等价）。</li>
+ *   <li><b>已改动</b>：卸载走 sable 原生存储链路 —— {@code saveAll()}（分配落盘指针并写盘）
+ *       → {@code moveToUnloaded}（转入 holding，UNLOADED 不删数据）→ {@code saveAll()}（holding 落盘），
+ *       并把指针记进台账。重新进入时优先按台账指针 {@code snatchAndLoad} 取回，
+ *       指针失效则按 {@code display_name} 扫描存储目录兜底；取回的是**改动后的方块**，不是结构模板。</li>
+ * </ul>
+ * 轨道位置仍由解析开普勒解每 tick 决定（{@link #drive}），落盘位姿只在取回瞬间用于定位。
  */
 public final class AsteroidEntityifier {
 
@@ -109,6 +129,14 @@ public final class AsteroidEntityifier {
         int physicsFailTicks;
         /** 非空 = 待卸载原因。 */
         String deadReason;
+        /** 解析位姿/速度缓存（唯一真值）：由 ensureAnalytic 按 tick 刷新，同一 tick 内幂等。 */
+        long analyticTick = Long.MIN_VALUE;
+        final double[] analyticPos = new double[3];
+        final Quaterniond analyticQuat = new Quaterniond();
+        final Vector3d analyticVel = new Vector3d();
+        final Vector3d analyticAngVel = new Vector3d();
+        /** 上次"物理与解析不符"日志的游戏刻度（节流用）。 */
+        long lastDriftLogTick = Long.MIN_VALUE;
 
         Instance(long id, ServerSubLevel sub, String structure, BlockPos structMin, BlockPos structMax,
                  Vector3d spinAxis, double spinRate, long spawnedTick) {
@@ -193,26 +221,28 @@ public final class AsteroidEntityifier {
     // ---------- 跨会话残留（孤儿）清理 ----------
 
     /**
-     * 清除本维度里所有**不属于当前活动表**的 {@code asteroid_} 子层级。
+     * 启动对账：清理"上一会话不该留下"的 {@code asteroid_} 子层级。
      *
-     * <p>sable 会把子层级连同强制加载 ticket 一起存档；重启后我们的活动表是空的，
-     * 上一次会话残留的子层级会以"冻结的石头"形式留在世界里并占住 plot。
-     * 本方法在每个维度首次 tick 时调用一次（幂等），把它们清掉；
-     * 之后按需重新实体化即可。
+     * <p>sable 只在子层级带强制加载票时才会把它自动恢复回来，而我们卸载时已经清掉票，
+     * 所以正常情况下这里扫不到任何东西。真扫到时只有两种可能：
+     * <ul>
+     *   <li><b>未改动过的残留</b>（上次崩溃/停服流程没走完）→ 删除，连 sable 存储副本一起清掉，
+     *       避免存档里堆积与结构模板等价的结构副本；</li>
+     *   <li><b>已改动过的副本</b> → 保留，等 {@link #materialize} 按编号认领（玩家靠近时才重新挂进活动表）。</li>
+     * </ul>
      *
      * @return 清理数量
      */
-    public static int purgeOrphans(ServerLevel level) {
+    public static int reconcileStored(ServerLevel level) {
         ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container == null) {
             return 0;
         }
+        AsteroidPersistence persistence = AsteroidPersistence.getOrLoad(level);
         Map<Long, Instance> active = map(level);
-        List<ServerSubLevel> orphans = new ArrayList<>();
-        for (dev.ryanhcode.sable.sublevel.SubLevel s : container.getAllSubLevels()) {
-            if (!(s instanceof ServerSubLevel sub)) {
-                continue;
-            }
+        List<ServerSubLevel> drop = new ArrayList<>();
+        int kept = 0;
+        for (ServerSubLevel sub : container.getAllSubLevels()) {
             String name = sub.getName();
             if (name == null || !name.startsWith(NAME_PREFIX)) {
                 continue; // 不是我们生成的（例如玩家自己的飞船）
@@ -224,22 +254,29 @@ public final class AsteroidEntityifier {
                     break;
                 }
             }
-            if (!ours) {
-                orphans.add(sub);
+            if (ours) {
+                continue;
             }
+            long id = parseId(name);
+            if (id >= 0 && persistence.isChanged(id)) {
+                kept++;
+                continue;
+            }
+            drop.add(sub);
         }
-        for (ServerSubLevel sub : orphans) {
-            removeQuietly(level, container, sub);
+        for (ServerSubLevel sub : drop) {
+            removeAndDelete(level, container, sub);
             totalPurged++;
         }
-        if (!orphans.isEmpty()) {
-            SpaceSimulation.LOGGER.info("[Entityify] 清理跨会话残留小行星子层级 {} 个（维度 {}）",
-                    orphans.size(), level.dimension().location());
+        if (!drop.isEmpty() || kept > 0) {
+            SpaceSimulation.LOGGER.info(
+                    "[Entityify] 启动对账（维度 {}）：清理未改动残留 {} 个 · 保留待认领的已改动副本 {} 个",
+                    level.dimension().location(), drop.size(), kept);
         }
-        return orphans.size();
+        return drop.size();
     }
 
-    /** 卸载本维度全部活动小行星（服务器停止/世界卸载前调用，避免它们被存档）。 */
+    /** 卸载本维度全部活动小行星（服务器停止/世界卸载前调用）：已改动的落盘，未改动的丢弃。 */
     public static int dematerializeAll(ServerLevel level) {
         Map<Long, Instance> m = map(level);
         if (m.isEmpty()) {
@@ -264,6 +301,22 @@ public final class AsteroidEntityifier {
         if (m.containsKey(id)) {
             return null; // 幂等
         }
+
+        // 0) 持久化认领：sable 可能已经把上次的副本（含玩家改动）恢复进容器，或它还在 holding/磁盘里
+        //    等我们按指针取回 —— 两种情况都绝不能再从结构模板重建，否则改动被抹掉。
+        ServerSubLevel existing = findByName(level, NAME_PREFIX + id);
+        if (existing != null) {
+            return adopt(level, id, tick, existing);
+        }
+        if (AsteroidPersistence.getOrLoad(level).isChanged(id)) {
+            ServerSubLevel recovered = recoverStored(level, id);
+            if (recovered != null) {
+                return adopt(level, id, tick, recovered);
+            }
+            SpaceSimulation.LOGGER.warn(
+                    "[Entityify] id={} 台账标记为已改动，但 sable 存储里没找到副本，回退为结构模板重建（改动丢失）", id);
+        }
+
         int cap = SpaceSimulationConfig.asteroidEntityifyMaxLoaded.get();
         if (m.size() >= cap) {
             return String.format(Locale.ROOT, "已达实体化上限 %d 颗（配置 asteroidEntityifyMaxLoaded）", cap);
@@ -361,6 +414,12 @@ public final class AsteroidEntityifier {
             Instance inst = new Instance(id, sub, orbit.structure,
                     new BlockPos(minX, minY, minZ), new BlockPos(maxX, maxY, maxZ),
                     spinAxisOf(id), spinPerTick, tick);
+            inst.analyticTick = tick;
+            inst.analyticPos[0] = p[0];
+            inst.analyticPos[1] = p[1];
+            inst.analyticPos[2] = p[2];
+            inst.analyticQuat.set(spinQuaternion(inst, tick));
+            inst.analyticAngVel.set(inst.spinAxis).mul(inst.spinRate * 20.0);
             m.put(id, inst);
             totalMaterialized++;
             lastMaterializeMs = (System.nanoTime() - startedNs) / 1_000_000L;
@@ -395,9 +454,324 @@ public final class AsteroidEntityifier {
         }
         ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
         if (container != null) {
-            removeQuietly(level, container, inst.sub);
+            if (AsteroidPersistence.getOrLoad(level).isChanged(id)) {
+                storeCopy(level, container, inst);
+            } else {
+                discardCopy(level, container, inst);
+            }
         }
         return true;
+    }
+
+    /**
+     * 卸载一颗**未改动**的小行星：内容与结构模板重建等价，所以直接丢弃。
+     *
+     * <p>若它在活跃期间恰好赶上过世界自动保存（sable 会把活跃子层级全部落盘），磁盘上就留着一份
+     * 永远不会再被加载的副本 —— 这里顺手把它标记删除并落盘，避免存档随探索无界增长。
+     * 从未被序列化过的（指针为空）不触发任何保存，开销为零。
+     */
+    private static void discardCopy(ServerLevel level, ServerSubLevelContainer container, Instance inst) {
+        SubLevelHoldingChunkMap holding = container.getHoldingChunkMap();
+        boolean hadCopy = inst.sub.getLastSerializationPointer() != null;
+        if (hadCopy) {
+            try {
+                holding.queueDeletion(inst.sub);
+            } catch (Throwable t) {
+                SpaceSimulation.LOGGER.warn("[Entityify] id=" + inst.id + " queueDeletion 失败（忽略）", t);
+            }
+        }
+        removeQuietly(level, container, inst.sub);
+        if (hadCopy) {
+            try {
+                holding.saveAll();
+            } catch (Throwable t) {
+                SpaceSimulation.LOGGER.warn("[Entityify] id=" + inst.id + " 清理未改动副本落盘失败（忽略）", t);
+            }
+        }
+    }
+
+    // ---------- 持久化：落盘 / 取回 / 认领 ----------
+
+    /**
+     * 把一颗**已被改动**的小行星转成 sable 持有副本并落盘。
+     *
+     * <p>顺序不能变：先 {@code saveAll()} 让 sable 给活跃子层级分配落盘指针（否则指针与 ticket 都是空的），
+     * 再 {@code moveToUnloaded} 把数据放进 holding chunk（用 UNLOADED，sable 不会删存储），
+     * 最后再 {@code saveAll()} 把 holding 写盘并 flush。两次 saveAll 之间逻辑位置不变，
+     * 因此指针不会在 chunk 间迁移，台账记下的指针与最终落盘位置一致。
+     */
+    private static void storeCopy(ServerLevel level, ServerSubLevelContainer container, Instance inst) {
+        AsteroidPersistence persistence = AsteroidPersistence.getOrLoad(level);
+        SubLevelHoldingChunkMap holding = container.getHoldingChunkMap();
+        java.util.UUID uuid = inst.sub.getUniqueId();
+        long startedNs = System.nanoTime();
+        try {
+            ChunkPos at = new ChunkPos(BlockPos.containing(
+                    inst.sub.logicalPose().position().x(),
+                    inst.sub.logicalPose().position().y(),
+                    inst.sub.logicalPose().position().z()));
+
+            // sable 只在"子层级还没有落盘指针"时才会给 holding 副本分配新指针、并把指针登记进
+            // holding chunk 的指针表；若指针已存在且 chunk 相同，它只覆盖数据文件、指针表里仍然没有记录
+            // → 重启后 snatch 会因为"holding chunk 里没有这个 uuid"而失败。所以先清掉旧指针，
+            // 强制它走"新分配 + 登记"分支（旧数据文件由 sable 的指针迁移逻辑清理）。
+            inst.sub.setLastSerializationPointer(null);
+
+            // 转入 holding（UNLOADED：数据保留），再立刻落盘（写数据文件 + 指针表 + flush）
+            holding.moveToUnloaded(inst.sub, at);
+            holding.saveAll();
+
+            GlobalSavedSubLevelPointer pointer = findPointer(holding.getStorage(), at, uuid);
+            if (pointer != null) {
+                persistence.rememberStored(inst.id, uuid, pointer.chunkPos().x, pointer.chunkPos().z,
+                        pointer.storageIndex(), pointer.subLevelIndex());
+            } else {
+                persistence.forgetStored(inst.id);
+                SpaceSimulation.LOGGER.warn("[Entityify] id={} 落盘后在 chunk {} 里没找到指针，"
+                        + "重新加载时将回退为按名字扫描存储目录", inst.id, at);
+            }
+            // 强制加载票已随 UNLOADED 失去意义；显式清掉，避免 sable 下次启动把它自动拉回来
+            // （我们要按需取回，否则玩家一进世界就被恢复出一堆白占 plot 的旧副本）。
+            try {
+                container.removeForceLoadTicket(inst.sub, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE);
+            } catch (Throwable ignored) {
+            }
+            SpaceSimulation.LOGGER.info("[Entityify] id={} 改动已落盘（{} ms，指针 {}）",
+                    inst.id, (System.nanoTime() - startedNs) / 1_000_000L, pointer);
+        } catch (Throwable t) {
+            SpaceSimulation.LOGGER.error("[Entityify] id=" + inst.id + " 落盘失败，退回普通卸载（改动可能丢失）", t);
+            removeQuietly(level, container, inst.sub);
+        }
+    }
+
+    /** 落盘之后从该 chunk 的 holding 表里读回子层级的指针（此时文件里已是最终位置）。 */
+    @Nullable
+    private static GlobalSavedSubLevelPointer findPointer(SubLevelStorage storage, ChunkPos pos, java.util.UUID uuid) {
+        SubLevelHoldingChunk chunk = storage.attemptLoadHoldingChunk(pos);
+        if (chunk == null) {
+            return null;
+        }
+        for (SavedSubLevelPointer local : chunk.getSubLevelPointers()) {
+            SubLevelData data = storage.attemptLoadSubLevel(pos, local);
+            if (data != null && uuid.equals(data.uuid())) {
+                return new GlobalSavedSubLevelPointer(pos, local.storageIndex(), local.subLevelIndex());
+            }
+        }
+        return null;
+    }
+
+    /** 容器里是否已有一颗叫该名字的子层级（sable 从持久化恢复出来的）。 */
+    @Nullable
+    public static ServerSubLevel findByName(ServerLevel level, String name) {
+        ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
+        if (container == null) {
+            return null;
+        }
+        for (ServerSubLevel sub : container.getAllSubLevels()) {
+            if (name.equals(sub.getName())) {
+                return sub;
+            }
+        }
+        return null;
+    }
+
+    /** 该子层级对应的小行星编号；-1 = 它不在活动表里（装配期、别人的子层级、或已卸载）。 */
+    public static long idOf(ServerSubLevel sub) {
+        for (Map<Long, Instance> instances : BY_LEVEL.values()) {
+            for (Instance inst : instances.values()) {
+                if (inst.sub == sub) {
+                    return inst.id;
+                }
+            }
+        }
+        return -1L;
+    }
+
+    /** 该方块位置落在哪颗活动小行星的 plot 内；-1 = 不在任何一颗内。 */
+    public static long idAt(ServerLevel level, BlockPos pos) {
+        for (Instance inst : map(level).values()) {
+            BoundingBox3ic bounds = inst.sub.getPlot().getBoundingBox();
+            if (bounds.contains(pos.getX(), pos.getY(), pos.getZ())) {
+                return inst.id;
+            }
+        }
+        return -1L;
+    }
+
+    /**
+     * 认领一颗**已经存在**的小行星子层级（持久化副本），把它重新挂进活动表并按解析轨道定位。
+     *
+     * <p>方块内容取自该子层级自身（含玩家改动），绝不重新落块。
+     */
+    private static String adopt(ServerLevel level, long id, long tick, ServerSubLevel sub) {
+        ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
+        if (container == null) {
+            return "无法获取 sable 子层级容器（sable 未加载或世界未初始化）";
+        }
+        AsteroidOrbit orbit = AsteroidProximityService.universe().orbitOf(id);
+        if (orbit == null) {
+            return "该小行星的轨道未定义（数据包可能已变更）";
+        }
+        double[] p = orbit.positionAt(tick);
+        sub.logicalPose().position().set(p[0], p[1], p[2]);
+
+        container.addForceLoadTicket(sub, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE);
+        sub.setName(NAME_PREFIX + id);
+
+        BoundingBox3ic plot = sub.getPlot().getBoundingBox();
+        double spinPerTick = Math.toRadians(SpaceSimulationConfig.asteroidSpinDegPerSecond.get()) / 20.0;
+        Instance inst = new Instance(id, sub, orbit.structure,
+                new BlockPos(plot.minX(), plot.minY(), plot.minZ()),
+                new BlockPos(plot.maxX(), plot.maxY(), plot.maxZ()),
+                spinAxisOf(id), spinPerTick, tick);
+        inst.analyticTick = tick;
+        inst.analyticPos[0] = p[0];
+        inst.analyticPos[1] = p[1];
+        inst.analyticPos[2] = p[2];
+        inst.analyticQuat.set(spinQuaternion(inst, tick));
+        inst.analyticAngVel.set(inst.spinAxis).mul(inst.spinRate * 20.0);
+        map(level).put(id, inst);
+        totalMaterialized++;
+        SpaceSimulation.LOGGER.info("[Entityify] id={} 认领持久化副本：plot 包围盒 {}，位姿已重置到解析轨道",
+                id, plot);
+        return null;
+    }
+
+    /**
+     * 从 sable 存储里取回一颗**已改动**小行星的副本：先按台账指针 {@code snatchAndLoad}（快），
+     * 指针失效（chunk 迁移、文件被删）时回退到按 {@code display_name} 全量扫描（慢，但只走一次）。
+     *
+     * @return 取回并已挂进容器的子层级；null = 没找到（调用方回退结构模板重建）
+     */
+    @Nullable
+    private static ServerSubLevel recoverStored(ServerLevel level, long id) {
+        ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
+        if (container == null) {
+            return null;
+        }
+        AsteroidPersistence persistence = AsteroidPersistence.getOrLoad(level);
+        AsteroidPersistence.Stored stored = persistence.stored(id);
+        if (stored != null) {
+            GlobalSavedSubLevelPointer pointer = new GlobalSavedSubLevelPointer(
+                    new ChunkPos(stored.chunkX(), stored.chunkZ()), stored.storageIndex(), stored.subLevelIndex());
+            try {
+                container.getHoldingChunkMap().snatchAndLoad(pointer, stored.uuid());
+                ServerSubLevel got = serverSubLevel(container, stored.uuid());
+                if (got != null) {
+                    return got;
+                }
+            } catch (Throwable t) {
+                SpaceSimulation.LOGGER.warn("[Entityify] id=" + id + " 台账指针取回异常，回退扫描", t);
+            }
+            SpaceSimulation.LOGGER.warn("[Entityify] id={} 台账指针 {} 已失效，改为扫描 sable 存储", id, pointer);
+            persistence.forgetStored(id);
+        }
+        return scanStoredByName(container, id, persistence);
+    }
+
+    @Nullable
+    private static ServerSubLevel serverSubLevel(ServerSubLevelContainer container, java.util.UUID uuid) {
+        SubLevel sub = container.getSubLevel(uuid);
+        return sub instanceof ServerSubLevel server ? server : null;
+    }
+
+    /**
+     * 兜底扫描：遍历 {@code <world>/sublevels/} 的 region 文件，按 {@code display_name == asteroid_<id>} 找副本。
+     *
+     * <p>与 sable 自带 {@code /sable storage find} 同一条路径（region 文件 → holding chunk → 指针 → 子层级数据）。
+     * 每颗只在台账指针失效时才走，代价是读一批 region 索引与数据。
+     */
+    @Nullable
+    private static ServerSubLevel scanStoredByName(ServerSubLevelContainer container, long id,
+                                                   AsteroidPersistence persistence) {
+        SubLevelStorage storage = container.getHoldingChunkMap().getStorage();
+        File[] regions = storage.getFolder().toFile()
+                .listFiles((dir, name) -> name.endsWith(SubLevelRegionFile.FILE_EXTENSION));
+        if (regions == null || regions.length == 0) {
+            return null;
+        }
+        String wanted = NAME_PREFIX + id;
+        long startedNs = System.nanoTime();
+        for (File region : regions) {
+            String base = region.getName();
+            base = base.substring(0, base.length() - SubLevelRegionFile.FILE_EXTENSION.length());
+            String[] parts = base.split("\\.");
+            if (parts.length != 3) {
+                continue;
+            }
+            int regionX;
+            int regionZ;
+            try {
+                regionX = Integer.parseInt(parts[1]);
+                regionZ = Integer.parseInt(parts[2]);
+            } catch (NumberFormatException e) {
+                continue;
+            }
+            for (int localX = 0; localX < SubLevelRegionFile.SIDE_LENGTH; localX++) {
+                for (int localZ = 0; localZ < SubLevelRegionFile.SIDE_LENGTH; localZ++) {
+                    ChunkPos chunkPos = new ChunkPos(
+                            regionX * SubLevelRegionFile.SIDE_LENGTH + localX,
+                            regionZ * SubLevelRegionFile.SIDE_LENGTH + localZ);
+                    SubLevelHoldingChunk chunk = storage.attemptLoadHoldingChunk(chunkPos);
+                    if (chunk == null) {
+                        continue;
+                    }
+                    for (SavedSubLevelPointer local : chunk.getSubLevelPointers()) {
+                        SubLevelData data = storage.attemptLoadSubLevel(chunkPos, local);
+                        if (data == null || !data.fullTag().contains("display_name")) {
+                            continue;
+                        }
+                        if (!wanted.equals(data.fullTag().getString("display_name"))) {
+                            continue;
+                        }
+                        GlobalSavedSubLevelPointer pointer = new GlobalSavedSubLevelPointer(
+                                chunkPos, local.storageIndex(), local.subLevelIndex());
+                        try {
+                            container.getHoldingChunkMap().snatchAndLoad(pointer, data.uuid());
+                        } catch (Throwable t) {
+                            SpaceSimulation.LOGGER.error("[Entityify] id=" + id + " 扫描命中但取回失败", t);
+                            continue;
+                        }
+                        ServerSubLevel got = serverSubLevel(container, data.uuid());
+                        if (got != null) {
+                            persistence.rememberStored(id, data.uuid(), chunkPos.x, chunkPos.z,
+                                    local.storageIndex(), local.subLevelIndex());
+                            SpaceSimulation.LOGGER.info("[Entityify] id={} 扫描找回副本（{} ms）",
+                                    id, (System.nanoTime() - startedNs) / 1_000_000L);
+                            return got;
+                        }
+                    }
+                }
+            }
+        }
+        SpaceSimulation.LOGGER.warn("[Entityify] id={} 扫描 {} 个 region 未找到副本（{} ms）",
+                id, regions.length, (System.nanoTime() - startedNs) / 1_000_000L);
+        return null;
+    }
+
+    /** 彻底删除一个子层级：REMOVED 会连同 sable 存储里的副本一起清掉（未改动的残留用它）。 */
+    private static void removeAndDelete(ServerLevel level, ServerSubLevelContainer container, ServerSubLevel sub) {
+        try {
+            container.removeForceLoadTicket(sub, SubLevelLoadingTicketType.COMMAND_FORCED, Unit.INSTANCE);
+        } catch (Throwable t) {
+            SpaceSimulation.LOGGER.warn("[Entityify] removeForceLoadTicket 失败（忽略）", t);
+        }
+        try {
+            if (!sub.isRemoved()) {
+                container.removeSubLevel(sub, SubLevelRemovalReason.REMOVED);
+            }
+        } catch (Throwable t) {
+            SpaceSimulation.LOGGER.warn("[Entityify] removeSubLevel(REMOVED) 失败（忽略）", t);
+        }
+    }
+
+    /** 从 {@code asteroid_<id>} 名字里解析编号；-1 表示名字不合法。 */
+    private static long parseId(String name) {
+        try {
+            return Long.parseLong(name.substring(NAME_PREFIX.length()));
+        } catch (RuntimeException e) {
+            return -1L;
+        }
     }
 
     private static void removeQuietly(ServerLevel level, ServerSubLevelContainer container, ServerSubLevel sub) {
@@ -461,18 +835,10 @@ public final class AsteroidEntityifier {
         }
     }
 
-    /** 单颗驱动：轨道位置 + 自转 → logicalPose → 物理体（物理体未就绪时安全跳过）。 */
+    /** 单颗驱动：解析位姿 → logicalPose/速度字段 → 物理体（物理体未就绪时安全跳过）。 */
     public static void drive(ServerLevel level, Instance inst, long tick) {
-        AsteroidOrbit orbit = AsteroidProximityService.universe().orbitOf(inst.id);
-        double[] p = orbit.positionAt(tick);
-        Quaterniond q = new Quaterniond();
-        if (inst.spinRate != 0.0) {
-            q.rotationAxis(inst.spinRate * tick, inst.spinAxis.x, inst.spinAxis.y, inst.spinAxis.z);
-        }
-        // 逻辑位姿始终更新（渲染/交互读的是它），物理体只是跟随者
-        Pose3d live = inst.sub.logicalPose();
-        live.position().set(p[0], p[1], p[2]);
-        live.orientation().set(q);
+        ensureAnalytic(inst, tick);
+        applyAnalytic(inst);
 
         RigidBodyHandle handle = RigidBodyHandle.of(inst.sub);
         if (handle == null || !handle.isValid()) {
@@ -480,7 +846,11 @@ public final class AsteroidEntityifier {
             return;
         }
         try {
-            handle.teleport(live.position(), q);
+            handle.teleport(inst.sub.logicalPose().position(), inst.analyticQuat);
+            // 这是一颗"运动学驱动"的小行星：位姿完全由解析轨道决定，物理引擎不该再给它速度。
+            // teleport 不清速度，速度一旦残留，每个物理子步都会把刚体推离解析位置，而 sable
+            // 会把引擎位姿写回 logicalPose（渲染/交互/网络同步都用它）→ 客户端抽搐。
+            resetEngineVelocity(level, inst.sub);
             inst.physicsFailTicks = 0;
         } catch (RuntimeException e) {
             SpaceSimulation.LOGGER.warn("[Entityify] id={} teleport 失败（第 {} 次）: {}",
@@ -488,6 +858,166 @@ public final class AsteroidEntityifier {
             SpaceSimulation.LOGGER.warn("[Entityify] teleport 异常堆栈", e);
             inst.physicsFailTicks++;
         }
+    }
+
+    /**
+     * 把某个子层级的位姿与速度恢复成解析值（幂等，可在每个物理子步之后调用）。
+     *
+     * <p>sable 的 {@code SubLevelPhysicsSystem#updatePose} 在每个物理子步末尾都会：
+     * ① 用**引擎位姿**覆盖 {@code logicalPose}；② 用"本步位姿 − 上一 tick 位姿"重算
+     * {@code latestLinearVelocity / latestAngularVelocity}（m/s、rad/s）。这两个速度会随快照
+     * 下发给客户端，供其插值与外推。我们的小行星是纯解析驱动的运动学体：引擎里没有速度、
+     * 位姿也不该漂移；不纠正的话，那两个速度会在 0 与"一 tick 的解析位移×20"之间跳动，
+     * 客户端据此外推就会偶发抽搐。这里把位姿与两个速度一次恢复成解析值。
+     *
+     * <p>只对我们的活动小行星生效；任何异常都直接放弃，退回 sable 的原行为。
+     */
+    public static void restoreAnalyticState(ServerSubLevel sub) {
+        try {
+            Instance inst = find(sub);
+            if (inst == null || sub.getLevel() == null) {
+                return;
+            }
+            ensureAnalytic(inst, sub.getLevel().getGameTime());
+            applyAnalytic(inst);
+        } catch (Throwable ignored) {
+            // 纠正失败就让 sable 的原行为生效
+        }
+    }
+
+    /** 活动表里找这个子层级（null = 不是我们的小行星）。 */
+    @Nullable
+    private static Instance find(SubLevel sub) {
+        for (Map<Long, Instance> instances : BY_LEVEL.values()) {
+            for (Instance inst : instances.values()) {
+                if (inst.sub == sub) {
+                    return inst;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 解析该 tick 的位姿与速度并缓存；同一 tick 内重复调用直接返回（顺带做一次不符诊断）。 */
+    private static void ensureAnalytic(Instance inst, long tick) {
+        if (tick == inst.analyticTick) {
+            return;
+        }
+        AsteroidOrbit orbit = AsteroidProximityService.universe().orbitOf(inst.id);
+        if (orbit == null) {
+            return;
+        }
+        double[] p = orbit.positionAt(tick);
+        if (inst.analyticTick != Long.MIN_VALUE) {
+            // 解析速度：格/tick → m/s（20 tick/s）；角速度：rad/tick → rad/s
+            inst.analyticVel.set((p[0] - inst.analyticPos[0]) * 20.0,
+                    (p[1] - inst.analyticPos[1]) * 20.0,
+                    (p[2] - inst.analyticPos[2]) * 20.0);
+            inst.analyticAngVel.set(inst.spinAxis).mul(inst.spinRate * 20.0);
+            reportMismatch(inst, tick, p);
+        }
+        inst.analyticPos[0] = p[0];
+        inst.analyticPos[1] = p[1];
+        inst.analyticPos[2] = p[2];
+        inst.analyticQuat.set(spinQuaternion(inst, tick));
+        inst.analyticTick = tick;
+    }
+
+    /** 把缓存的解析位姿与速度写回该子层级（渲染/交互/网络同步读的就是它们）。 */
+    private static void applyAnalytic(Instance inst) {
+        Pose3d live = inst.sub.logicalPose();
+        live.position().set(inst.analyticPos[0], inst.analyticPos[1], inst.analyticPos[2]);
+        live.orientation().set(inst.analyticQuat);
+        inst.sub.latestLinearVelocity.set(inst.analyticVel);
+        inst.sub.latestAngularVelocity.set(inst.analyticAngVel);
+    }
+
+    /** 自转四元数：绕固定轴、等角速度（tick 的确定函数）。 */
+    private static Quaterniond spinQuaternion(Instance inst, long tick) {
+        Quaterniond q = new Quaterniond();
+        if (inst.spinRate != 0.0) {
+            q.rotationAxis(inst.spinRate * tick, inst.spinAxis.x, inst.spinAxis.y, inst.spinAxis.z);
+        }
+        return q;
+    }
+
+    /**
+     * 诊断：比较"物理系统写回的值"（位姿、线速度、角速度）与解析值。三者都正常时完全静默。
+     */
+    private static void reportMismatch(Instance inst, long tick, double[] analyticPos) {
+        Pose3d live = inst.sub.logicalPose();
+        double drift = Math.sqrt(sq(live.position().x - analyticPos[0])
+                + sq(live.position().y - analyticPos[1])
+                + sq(live.position().z - analyticPos[2]));
+        double dLin = inst.sub.latestLinearVelocity.distance(inst.analyticVel);
+        double dAng = inst.sub.latestAngularVelocity.distance(inst.analyticAngVel);
+        if (drift < 0.05 && dLin < 2.0 && dAng < 0.05) {
+            return;
+        }
+        if (tick - inst.lastDriftLogTick < 40L) {
+            return;
+        }
+        inst.lastDriftLogTick = tick;
+        SpaceSimulation.LOGGER.info(
+                "[Entityify] id={} 物理与解析不符：位姿差 {} 格，线速度 {} vs {} m/s，角速度 {} vs {} rad/s（已按解析值纠正）",
+                inst.id, fmt(drift),
+                fmt(inst.sub.latestLinearVelocity.length()), fmt(inst.analyticVel.length()),
+                fmt(inst.sub.latestAngularVelocity.length()), fmt(inst.analyticAngVel.length()));
+    }
+
+    /** 清零刚体在物理引擎里的线速度与角速度（{@code PhysicsPipeline#resetVelocity}）。 */
+    private static void resetEngineVelocity(ServerLevel level, ServerSubLevel sub) {
+        ServerSubLevelContainer container = SubLevelContainer.getContainer(level);
+        if (container != null) {
+            container.physicsSystem().getPipeline().resetVelocity(sub);
+        }
+    }
+
+    private static double sq(double v) {
+        return v * v;
+    }
+
+    private static String fmt(double v) {
+        return String.format(Locale.ROOT, "%.3f", v);
+    }
+
+    /**
+     * 解析回溯：某颗小行星在指定 tick 的逻辑位姿。
+     *
+     * <p>交互判定的延迟补偿（{@code SubLevelInteractionLagCompensation}）需要"客户端点击那一刻"
+     * 的小行星位姿。位置来自开普勒轨道、自转是绕固定轴的等角速度，二者都是 tick 的确定函数，
+     * 因此任意 tick 都能精确求出，不需要插值近似 —— 这是本模组小行星相对普通子层级的便利。
+     *
+     * @param sub  目标子层级
+     * @param tick 目标游戏刻度（与 {@link #drive} 使用同一时间基准）
+     * @return 该 tick 的位姿；null 表示这个子层级不是我们实体化的小行星（调用方应退回当前位姿）
+     */
+    @Nullable
+    public static Pose3d poseAt(SubLevel sub, long tick) {
+        if (!(sub instanceof ServerSubLevel server)) {
+            return null;
+        }
+        for (Map<Long, Instance> instances : BY_LEVEL.values()) {
+            for (Instance inst : instances.values()) {
+                if (inst.sub != server) {
+                    continue;
+                }
+                AsteroidOrbit orbit = AsteroidProximityService.universe().orbitOf(inst.id);
+                if (orbit == null) {
+                    return null;
+                }
+                double[] p = orbit.positionAt(tick);
+                Quaterniond q = new Quaterniond();
+                if (inst.spinRate != 0.0) {
+                    q.rotationAxis(inst.spinRate * tick, inst.spinAxis.x, inst.spinAxis.y, inst.spinAxis.z);
+                }
+                Pose3d pose = new Pose3d(sub.logicalPose());
+                pose.position().set(p[0], p[1], p[2]);
+                pose.orientation().set(q);
+                return pose;
+            }
+        }
+        return null;
     }
 
     /** 由编号确定性派生自转轴（单位向量，避免南北极对齐的退化）。 */

@@ -103,5 +103,32 @@ public class SpaceSimulationBlockStateProvider extends BlockStateProvider {
 // 磁铁矿石
         simpleBlockWithItem(SpaceSimulationBlock.MAGNETITE_ORE.get(),
                 cubeAll(SpaceSimulationBlock.MAGNETITE_ORE.get()));
+
+
+// ========== 新增矿石（6种） ==========
+
+// 辉砷钴矿石
+        simpleBlockWithItem(SpaceSimulationBlock.COBALTITE_ORE.get(),
+                cubeAll(SpaceSimulationBlock.COBALTITE_ORE.get()));
+
+// 锂辉石矿石
+        simpleBlockWithItem(SpaceSimulationBlock.SPODUMENE_ORE.get(),
+                cubeAll(SpaceSimulationBlock.SPODUMENE_ORE.get()));
+
+// 锆石矿石
+        simpleBlockWithItem(SpaceSimulationBlock.ZIRCON_ORE.get(),
+                cubeAll(SpaceSimulationBlock.ZIRCON_ORE.get()));
+
+// 独居石矿石
+        simpleBlockWithItem(SpaceSimulationBlock.MONAZITE_ORE.get(),
+                cubeAll(SpaceSimulationBlock.MONAZITE_ORE.get()));
+
+// 沥青铀矿石
+        simpleBlockWithItem(SpaceSimulationBlock.URANINITE_ORE.get(),
+                cubeAll(SpaceSimulationBlock.URANINITE_ORE.get()));
+
+// 钍石矿石
+        simpleBlockWithItem(SpaceSimulationBlock.THORITE_ORE.get(),
+                cubeAll(SpaceSimulationBlock.THORITE_ORE.get()));
     }
 }

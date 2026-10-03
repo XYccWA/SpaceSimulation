@@ -2,31 +2,18 @@ package org.xyccwa.space_simulation.dataGen;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.data.PackOutput;
 import net.minecraft.data.loot.BlockLootSubProvider;
-import net.minecraft.data.loot.LootTableProvider;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.flag.FeatureFlags;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.storage.loot.LootTable;
-import net.minecraft.world.level.storage.loot.entries.LootItem;
-import net.minecraft.world.level.storage.loot.entries.LootPoolEntryContainer;
-import net.minecraft.world.level.storage.loot.functions.ApplyBonusCount;
-import net.minecraft.world.level.storage.loot.functions.SetItemCountFunction;
-import net.minecraft.world.level.storage.loot.providers.number.UniformGenerator;
 import org.xyccwa.space_simulation.modBlock.SpaceSimulationBlock;
-import org.xyccwa.space_simulation.modItem.SpaceSimulationItem;
 
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 
+/**
+ * 方块战利品表：所有矿石方块（含浮土块）统一掉落自身 1 个。
+ * （2026-10-02 用户裁定：不再直接掉矿砂，矿砂改由破碎/选矿工序产出。）
+ */
 public class SpaceSimulationBlockLootTableProvider extends BlockLootSubProvider {
 
     public SpaceSimulationBlockLootTableProvider(HolderLookup.Provider registries) {
@@ -36,111 +23,42 @@ public class SpaceSimulationBlockLootTableProvider extends BlockLootSubProvider 
     @Override
     protected void generate() {
 
-//        dropSelf(SpaceSimulationBlock.NICKEL_IRON_ORE.get());
+// ========== 浮土块 ==========
+        dropSelf(SpaceSimulationBlock.DUST_BLOCK.get());
 
-        add(SpaceSimulationBlock.DUST_BLOCK.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.DUST_BLOCK.get(),
-                        SpaceSimulationItem.DUST.get(), 200F, 300F));
-
-// ========== 金属矿石（10种） ==========
-
-        add(SpaceSimulationBlock.CHALCOCITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.CARBONACEOUS_ORE.get(),
-                        SpaceSimulationItem.CARBONACEOUS_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.KAMACITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.KAMACITE_ORE.get(),
-                        SpaceSimulationItem.KAMACITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.TAENITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.TAENITE_ORE.get(),
-                        SpaceSimulationItem.TAENITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.CHROMITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.CHROMITE_ORE.get(),
-                        SpaceSimulationItem.CHROMITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.ILMENITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.ILMENITE_ORE.get(),
-                        SpaceSimulationItem.ILMENITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.FORSTERITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.FORSTERITE_ORE.get(),
-                        SpaceSimulationItem.FORSTERITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.WOLFRAMITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.WOLFRAMITE_ORE.get(),
-                        SpaceSimulationItem.WOLFRAMITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.COLUMBITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.COLUMBITE_ORE.get(),
-                        SpaceSimulationItem.COLUMBITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.MOLYBDENITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.MOLYBDENITE_ORE.get(),
-                        SpaceSimulationItem.MOLYBDENITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.TANTALITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.TANTALITE_ORE.get(),
-                        SpaceSimulationItem.TANTALITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.RHENIITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.RHENIITE_ORE.get(),
-                        SpaceSimulationItem.RHENIITE_SAND.get(), 200F, 300F));
-
+// ========== 金属矿石（11种） ==========
+        dropSelf(SpaceSimulationBlock.CHALCOCITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.KAMACITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.TAENITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.CHROMITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.ILMENITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.FORSTERITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.WOLFRAMITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.COLUMBITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.MOLYBDENITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.TANTALITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.RHENIITE_ORE.get());
 
 // ========== 硅质矿石（4种） ==========
-
-        add(SpaceSimulationBlock.OLIVINE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.OLIVINE_ORE.get(),
-                        SpaceSimulationItem.OLIVINE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.PYROXENE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.PYROXENE_ORE.get(),
-                        SpaceSimulationItem.PYROXENE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.PLAGIOCLASE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.PLAGIOCLASE_ORE.get(),
-                        SpaceSimulationItem.PLAGIOCLASE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.QUARTZ_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.QUARTZ_ORE.get(),
-                        SpaceSimulationItem.QUARTZ_SAND.get(), 200F, 300F));
-
+        dropSelf(SpaceSimulationBlock.OLIVINE_ORE.get());
+        dropSelf(SpaceSimulationBlock.PYROXENE_ORE.get());
+        dropSelf(SpaceSimulationBlock.PLAGIOCLASE_ORE.get());
+        dropSelf(SpaceSimulationBlock.QUARTZ_ORE.get());
 
 // ========== 碳质矿石（5种） ==========
+        dropSelf(SpaceSimulationBlock.CARBONACEOUS_ORE.get());
+        dropSelf(SpaceSimulationBlock.PHYLLOSILICATE_ORE.get());
+        dropSelf(SpaceSimulationBlock.CARBONATE_ORE.get());
+        dropSelf(SpaceSimulationBlock.TROILITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.MAGNETITE_ORE.get());
 
-        add(SpaceSimulationBlock.CARBONACEOUS_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.CARBONACEOUS_ORE.get(),
-                        SpaceSimulationItem.CARBONACEOUS_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.PHYLLOSILICATE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.PHYLLOSILICATE_ORE.get(),
-                        SpaceSimulationItem.PHYLLOSILICATE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.CARBONATE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.CARBONATE_ORE.get(),
-                        SpaceSimulationItem.CARBONATE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.TROILITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.TROILITE_ORE.get(),
-                        SpaceSimulationItem.TROILITE_SAND.get(), 200F, 300F));
-
-        add(SpaceSimulationBlock.MAGNETITE_ORE.get(),
-                block -> createLikeOreDrops(SpaceSimulationBlock.MAGNETITE_ORE.get(),
-                        SpaceSimulationItem.MAGNETITE_SAND.get(), 200F, 300F));
-
-    }
-
-    protected LootTable.Builder createLikeOreDrops(Block block,Item item,Float min,Float max) {
-        HolderLookup.RegistryLookup<Enchantment> registrylookup = this.registries.lookupOrThrow(Registries.ENCHANTMENT);
-        return this.createSilkTouchDispatchTable(
-                block,
-                (LootPoolEntryContainer.Builder)this.applyExplosionDecay(
-                        block,
-                        LootItem.lootTableItem(item)
-                                .apply(SetItemCountFunction.setCount(UniformGenerator.between(min, max)))
-                                .apply(ApplyBonusCount.addOreBonusCount(registrylookup.getOrThrow(Enchantments.FORTUNE)))));
+// ========== 新增矿石（6种） ==========
+        dropSelf(SpaceSimulationBlock.COBALTITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.SPODUMENE_ORE.get());
+        dropSelf(SpaceSimulationBlock.ZIRCON_ORE.get());
+        dropSelf(SpaceSimulationBlock.MONAZITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.URANINITE_ORE.get());
+        dropSelf(SpaceSimulationBlock.THORITE_ORE.get());
     }
 
     @Override

@@ -42,6 +42,14 @@ public class SpaceSimulationZhCnLangProvider extends LanguageProvider {
         add(SpaceSimulationBlock.TROILITE_ORE.get(), "陨硫铁矿石");
         add(SpaceSimulationBlock.MAGNETITE_ORE.get(), "磁铁矿石");
 
+// ========== 新增矿石（6种，科技树断链补齐） ==========
+        add(SpaceSimulationBlock.COBALTITE_ORE.get(), "辉砷钴矿石");
+        add(SpaceSimulationBlock.SPODUMENE_ORE.get(), "锂辉石矿石");
+        add(SpaceSimulationBlock.ZIRCON_ORE.get(), "锆石矿石");
+        add(SpaceSimulationBlock.MONAZITE_ORE.get(), "独居石矿石");
+        add(SpaceSimulationBlock.URANINITE_ORE.get(), "沥青铀矿石");
+        add(SpaceSimulationBlock.THORITE_ORE.get(), "钍石矿石");
+
         add(SpaceSimulationItem.DUST.get(), "浮土");
 // 金属矿砂
         add(SpaceSimulationItem.CHALCOCITE_SAND.get(), "辉铜矿砂");
@@ -69,6 +77,41 @@ public class SpaceSimulationZhCnLangProvider extends LanguageProvider {
         add(SpaceSimulationItem.TROILITE_SAND.get(), "陨硫铁矿砂");
         add(SpaceSimulationItem.MAGNETITE_SAND.get(), "磁铁矿砂");
 
+// 新增矿砂（科技树断链补齐）
+        add(SpaceSimulationItem.COBALTITE_SAND.get(), "辉砷钴矿砂");
+        add(SpaceSimulationItem.SPODUMENE_SAND.get(), "锂辉石砂");
+        add(SpaceSimulationItem.ZIRCON_SAND.get(), "锆石砂");
+        add(SpaceSimulationItem.MONAZITE_SAND.get(), "独居石砂");
+        add(SpaceSimulationItem.URANINITE_SAND.get(), "沥青铀矿砂");
+        add(SpaceSimulationItem.THORITE_SAND.get(), "钍石砂");
+
+// 矿粉
+        add(SpaceSimulationItem.CHALCOCITE_POWDER.get(), "辉铜矿粉");
+        add(SpaceSimulationItem.KAMACITE_POWDER.get(), "铁纹矿粉");
+        add(SpaceSimulationItem.TAENITE_POWDER.get(), "镍纹矿粉");
+        add(SpaceSimulationItem.CHROMITE_POWDER.get(), "铬铁矿粉");
+        add(SpaceSimulationItem.ILMENITE_POWDER.get(), "钛铁矿粉");
+        add(SpaceSimulationItem.FORSTERITE_POWDER.get(), "镁橄榄石粉");
+        add(SpaceSimulationItem.WOLFRAMITE_POWDER.get(), "钨锰矿粉");
+        add(SpaceSimulationItem.COLUMBITE_POWDER.get(), "铌铁矿粉");
+        add(SpaceSimulationItem.MOLYBDENITE_POWDER.get(), "辉钼矿粉");
+        add(SpaceSimulationItem.TANTALITE_POWDER.get(), "钽铁矿粉");
+        add(SpaceSimulationItem.RHENIITE_POWDER.get(), "辉铼矿粉");
+        add(SpaceSimulationItem.OLIVINE_POWDER.get(), "橄榄石粉");
+        add(SpaceSimulationItem.PYROXENE_POWDER.get(), "辉石粉");
+        add(SpaceSimulationItem.PLAGIOCLASE_POWDER.get(), "斜长石粉");
+        add(SpaceSimulationItem.QUARTZ_POWDER.get(), "石英粉");
+        add(SpaceSimulationItem.CARBONACEOUS_POWDER.get(), "碳质球粒粉");
+        add(SpaceSimulationItem.PHYLLOSILICATE_POWDER.get(), "层状硅酸盐粉");
+        add(SpaceSimulationItem.CARBONATE_POWDER.get(), "碳酸盐粉");
+        add(SpaceSimulationItem.TROILITE_POWDER.get(), "陨硫铁矿粉");
+        add(SpaceSimulationItem.MAGNETITE_POWDER.get(), "磁铁矿粉");
+        add(SpaceSimulationItem.COBALTITE_POWDER.get(), "辉砷钴矿粉");
+        add(SpaceSimulationItem.SPODUMENE_POWDER.get(), "锂辉石粉");
+        add(SpaceSimulationItem.ZIRCON_POWDER.get(), "锆石粉");
+        add(SpaceSimulationItem.MONAZITE_POWDER.get(), "独居石粉");
+        add(SpaceSimulationItem.URANINITE_POWDER.get(), "沥青铀矿粉");
+        add(SpaceSimulationItem.THORITE_POWDER.get(), "钍石粉");
 // ========== 金属单质锭 ==========
         add(SpaceSimulationItem.COPPER_INGOT.get(), "铜锭");
         add(SpaceSimulationItem.IRON_INGOT.get(), "铁锭");
@@ -92,7 +135,7 @@ public class SpaceSimulationZhCnLangProvider extends LanguageProvider {
         add(SpaceSimulationItem.PLATINUM_RHODIUM_ALLOY_INGOT.get(), "铂铑合金锭");
         add(SpaceSimulationItem.GH4061_ALLOY_INGOT.get(), "GH4061型合金锭");
 
-        add("itemGroup.space_simulation.creative_tab","太空模拟");
+        add("itemGroup.space_simulation.ore.creative_tab","太空模拟-矿物");
 
         addDeathMessage("high_g_force", "%s 被超高G力碾压");
         addDeathMessage("high_g_force.player", "%s 在试图逃离 %s 时被超高G力碾压");

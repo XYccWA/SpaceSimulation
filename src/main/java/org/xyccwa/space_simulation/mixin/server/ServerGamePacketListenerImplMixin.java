@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.xyccwa.space_simulation.interaction.InteractionTimeline;
 import org.xyccwa.space_simulation.orbital.PlayerOrbitServer;
 
 /**
@@ -47,6 +48,9 @@ public abstract class ServerGamePacketListenerImplMixin {
 
     @Inject(method = "handleMovePlayer", at = @At("HEAD"), cancellable = true)
     private void spaceSim$serverAuthoritativeMovement(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
+        // 子层级交互的延迟补偿要用"客户端所见位置"来对齐时间轴（见 InteractionTimeline）。
+        // 这里只缓存它，绝不拿它做位移 —— 位移仍然完全由服务器积分。
+        InteractionTimeline.recordClientPosition(this.player, packet);
         if (this.tickCount == 0) return;
         if (this.awaitingPositionFromClient != null) return;
         if (this.player.isPassenger()) return;

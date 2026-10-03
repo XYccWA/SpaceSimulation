@@ -34,13 +34,14 @@ import java.util.Set;
  *       每轮最多实体化 asteroidEntityifyLoadsPerRound 颗，**离玩家最近者优先**，且不超过
  *       asteroidEntityifyMaxLoaded 上限。</li>
  *   <li><b>卸载</b>：活动实例若连续 asteroidEntityifyUnloadGraceTicks 不在强载集合中则卸载；
- *       预载索引分帧重建期间（集合可能暂时不完整）一律不卸载。</li>
+ *       预载索引分帧重建期间**不再冻结卸载**，改为把宽限期加长 {@link #REBUILD_GRACE_BONUS_TICKS}
+ *       （重建期间集合可能不完整，加长 grace 已足够防误卸；冻结会让名额被旧实例长期占住）。</li>
  *   <li><b>不消费 poll 事件</b>：/asteroid loader 命令会消费同一批事件，因此这里只做集合差集，
  *       与命令互不干扰、天然幂等。</li>
  * </ul>
  *
- * <p>另外负责：每个维度首次 tick 清理跨会话残留子层级（{@link AsteroidEntityifier#purgeOrphans}）、
- * 服务器停止前清空活动实例（避免被存档）。
+ * <p>另外负责：每个维度首次 tick 对账持久化副本（{@link AsteroidEntityifier#reconcileStored}）、
+ * 服务器停止前把已改动的小行星落盘并保存持久化台账。
  */
 public final class AsteroidEntityifyService {
 
@@ -48,6 +49,15 @@ public final class AsteroidEntityifyService {
 
     /** 起步清理延迟（tick）：等 sable 把存档里的子层级恢复完再清残留。 */
     private static final long PURGE_DELAY_TICKS = 200L;
+
+    /**
+     * 预载索引分帧重建期间额外放宽的卸载宽限（tick，20 秒）。
+     *
+     * <p>重建会用新位置的相位窗口整轮替换旧索引，期间强载集合可能暂时不完整 —— 这是当初
+     * "重建期间一律不卸载"的理由。但每次大位移（传送）都会触发重建，冻结卸载会让旧实例
+     * 长期占住实体化名额（实测单颗滞留 200~4000 tick）。现在改为不冻结，只把宽限期加长。
+     */
+    private static final int REBUILD_GRACE_BONUS_TICKS = 400;
 
     /** 每个维度的自动窗口状态。 */
     private static final Map<ResourceKey<Level>, AutoState> STATES = new HashMap<>();
@@ -129,10 +139,10 @@ public final class AsteroidEntityifyService {
         long tick = level.getGameTime();
         AutoState st = state(level);
 
-        // 起步清理：sable 从存档恢复子层级有时间差，太早扫描会漏掉它们，因此推迟到进世界约 10 秒后
+        // 起步对账：sable 从存档恢复子层级有时间差，太早扫描会漏掉它们，因此推迟到进世界约 10 秒后
         if (!st.purged && tick >= PURGE_DELAY_TICKS) {
             st.purged = true;
-            st.lastPurged = AsteroidEntityifier.purgeOrphans(level);
+            st.lastPurged = AsteroidEntityifier.reconcileStored(level);
         }
 
         AsteroidProximityLoader loader = AsteroidProximityService.loader();
@@ -148,20 +158,28 @@ public final class AsteroidEntityifyService {
         double py = p.getY();
         double pz = p.getZ();
 
-        // 3) 卸载：迟滞；索引重建期间集合可能不完整，一律不卸载
-        boolean canUnload = !loader.indexBuilding();
+        // 3) 卸载：迟滞；索引重建期间集合可能不完整 —— 不再冻结卸载，只把宽限期加长
         int unloaded = 0;
         List<AsteroidEntityifier.Instance> active = AsteroidEntityifier.all(level);
         Set<Long> activeIds = new HashSet<>();
         int grace = unloadGraceTicks();
+        if (loader.indexBuilding()) {
+            grace += REBUILD_GRACE_BONUS_TICKS;
+        }
         for (AsteroidEntityifier.Instance inst : active) {
             activeIds.add(inst.id);
             if (cur.contains(inst.id)) {
                 st.lastSeenStrong.put(inst.id, tick);
                 continue;
             }
-            long lastSeen = st.lastSeenStrong.getOrDefault(inst.id, tick);
-            if (canUnload && tick - lastSeen > grace) {
+            Long seen = st.lastSeenStrong.get(inst.id);
+            if (seen == null) {
+                // 从未登记过的实例（命令路径 materialize 的、或强载集合早于本表更新的）：
+                // 以实体化时刻为起点并回写。若沿用 getOrDefault(id, tick)，tick-lastSeen 恒为 0 → 永不卸载
+                seen = inst.spawnedTick;
+                st.lastSeenStrong.put(inst.id, seen);
+            }
+            if (tick - seen > grace) {
                 AsteroidEntityifier.dematerialize(level, inst.id);
                 st.lastSeenStrong.remove(inst.id);
                 unloaded++;
@@ -219,7 +237,7 @@ public final class AsteroidEntityifyService {
         }
     }
 
-    /** 服务器停止前清空活动实例（避免子层级被存档成跨会话残留）。 */
+    /** 服务器停止前：已改动的落盘（走 sable holding），未改动的直接卸载；随后补存持久化台账。 */
     public static void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
         if (!SABLE_PRESENT) {
             return;
@@ -227,8 +245,14 @@ public final class AsteroidEntityifyService {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             int n = AsteroidEntityifier.dematerializeAll(level);
             if (n > 0) {
-                SpaceSimulation.LOGGER.info("[Entityify] 停服清理维度 {} 的活动小行星 {} 颗",
+                SpaceSimulation.LOGGER.info("[Entityify] 停服卸载维度 {} 的活动小行星 {} 颗（改动已落盘）",
                         level.dimension().location(), n);
+            }
+            // 世界保存可能先于本事件发生，而落盘指针/改动标记正是刚才写的 —— 主动补一次，不等下次自动保存。
+            try {
+                level.getDataStorage().save();
+            } catch (Throwable t) {
+                SpaceSimulation.LOGGER.warn("[Entityify] 停服保存小行星持久化台账失败", t);
             }
         }
         STATES.clear();
@@ -272,7 +296,7 @@ public final class AsteroidEntityifyService {
         try {
             return Math.max(16.0, SpaceSimulationConfig.asteroidEntityifyRadius.get());
         } catch (Throwable t) {
-            return 2000.0;
+            return 1000.0;
         }
     }
 

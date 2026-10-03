@@ -8,6 +8,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.xyccwa.space_simulation.SpaceSimulation;
 import org.xyccwa.space_simulation.api.EntityRotation;
+import org.xyccwa.space_simulation.diagnostic.InteractionDiagnostics;
+import org.xyccwa.space_simulation.interaction.InteractionTimeline;
 import org.xyccwa.space_simulation.network.PlayerOrbitStatePayload;
 
 import java.util.Map;
@@ -64,6 +66,8 @@ public final class PlayerOrbitServer {
         AUTHORITATIVE_POS.remove(id);
         AUTHORITATIVE_TICK.remove(id);
         AUTHORITATIVE_VEL.remove(id);
+        InteractionTimeline.forget(player);
+        InteractionDiagnostics.forget(player);
     }
 
     private static boolean consumeReset(Player player) {
@@ -112,6 +116,8 @@ public final class PlayerOrbitServer {
             }
             sp.setKnownMovement(new Vec3(sp.getX() - beforeX, sp.getY() - beforeY, sp.getZ() - beforeZ));
             rememberAuthoritative(sp);
+            // 延迟补偿用：服务端权威位置历史（每 tick 一行，供交互判定回溯到客户端时间轴）
+            InteractionTimeline.recordAuthoritative(sp);
             sendState(sp, consumeReset(sp));
         }
     }

@@ -94,8 +94,10 @@ public final class AsteroidProximity {
      * 粗条件（均只筛"明显不可能"，保超集）：
      *   - 径向：轨道近/远拱点跨过 [rP−R, rP+R]：a(1+e_hi) ≥ rP−R 且 a(1−e_hi) ≤ rP+R
      *   - 高度上限：轨道最高点够得到球：a·sin(i_hi) ≥ |py|−R
-     *   - 高度下限：档内最小最高点仍在球上方 → 整档在球外（仅倾角下限 > 0 的带会命中）
      *   - 方位：环上方位覆盖全 360°，oIdx 全遍历（精测由 phaseWindow 剔除）
+     *
+     * <p>刻意不做"高度下限"剔除：轨道 y = r·sin i·sin u 在近拱点（u=0）恒为 0，
+     * 任何档都穿过赤道面，因此"最高点高于球顶"不能推出与球不相交。
      */
     public static void queryCellsForBelt(AsteroidUniverse.Belt b,
                                          double px, double py, double pz, double r, double margin,
@@ -112,7 +114,7 @@ public final class AsteroidProximity {
         double dI = b.inclinationSpanRad() / AsteroidUniverse.I_BINS;
 
         for (int eIdx = 0; eIdx < AsteroidUniverse.E_BINS; eIdx++) {
-            double eLo = eIdx * dE, eHi = (eIdx + 1) * dE;
+            double eHi = (eIdx + 1) * dE;
             for (int aIdx = 0; aIdx < b.aBins; aIdx++) {
                 double aLoR = b.innerRadius + aIdx * da;
                 double aHiR = aLoR + da;
@@ -122,12 +124,13 @@ public final class AsteroidProximity {
                 if (aHiR * (1 + eHi) < rP - reff) continue;
                 for (int iIdx = 0; iIdx < AsteroidUniverse.I_BINS; iIdx++) {
                     double iHi = b.minInclinationRad + (iIdx + 1) * dI;
-                    // 高度上限粗筛：轨道最大 |y| = a·sin(iHi)（外层上限 aHiR 保超集）
+                    // 高度粗筛（唯一有效的一条）：轨道最大 |y| = a·sin(iHi)（外层上限 aHiR 保超集）；
+                    // 档内每颗的最高点都够不到球的 |y| 带 → 整档剔除。
                     if (aHiR * Math.sin(iHi) < Math.abs(py) - reff) continue;
-                    // 高度下限粗筛：档内最小最高点（内层最小 a、最小 e、档内最小 i）仍高于球顶 → 剔除
-                    double iLo = b.minInclinationRad + iIdx * dI;
-                    if (aLoR * (1 - eLo) * Math.sin(iLo) > Math.abs(py) + reff) continue;
-                    // oIdx 全遍历（环上方位全覆盖，不能按 Ω 滤）
+                    // 禁止再按"高度下限"剔除：y = r·sin i·sin u 在 u=0（近拱点）恒为 0，
+                    // 每颗轨道都穿过赤道面，"最高点高于球顶"不构成与球不相交的理由。
+                    // （旧实现在此处用 aLo·(1−eLo)·sin(iLo) > |py|+reff 剔除，会把本应命中的环整档漏掉：
+                    //   当前数据包下玩家 |py| 较小、强载档 reff=2300 时，内带高倾角+低离心率档即被静默剔除。）
                     for (int oIdx = 0; oIdx < AsteroidUniverse.O_BINS; oIdx++) {
                         out.add(AsteroidUniverse.packCell(b, aIdx, eIdx, iIdx, oIdx));
                     }

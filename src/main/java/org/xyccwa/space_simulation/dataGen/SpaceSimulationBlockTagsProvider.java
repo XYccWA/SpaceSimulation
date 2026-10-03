@@ -39,6 +39,13 @@ public class SpaceSimulationBlockTagsProvider extends BlockTagsProvider {
                 .add(SpaceSimulationBlock.PHYLLOSILICATE_ORE.get())
                 .add(SpaceSimulationBlock.CARBONATE_ORE.get())
                 .add(SpaceSimulationBlock.TROILITE_ORE.get())
-                .add(SpaceSimulationBlock.MAGNETITE_ORE.get());
+                .add(SpaceSimulationBlock.MAGNETITE_ORE.get())
+                // 新增矿石（6种）
+                .add(SpaceSimulationBlock.COBALTITE_ORE.get())
+                .add(SpaceSimulationBlock.SPODUMENE_ORE.get())
+                .add(SpaceSimulationBlock.ZIRCON_ORE.get())
+                .add(SpaceSimulationBlock.MONAZITE_ORE.get())
+                .add(SpaceSimulationBlock.URANINITE_ORE.get())
+                .add(SpaceSimulationBlock.THORITE_ORE.get());
     }
 }
