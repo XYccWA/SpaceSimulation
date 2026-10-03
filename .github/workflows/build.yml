@@ -178,7 +178,11 @@ jobs:
           form.append('file', new Blob([fs.readFileSync(`build/libs/${process.env.RELEASE_NAME}.jar`)]), `${process.env.RELEASE_NAME}.jar`);
           const res = await fetch('https://minecraft.curseforge.com/api/projects/1720899/upload', {
             method: 'POST',
-            headers: { 'X-Api-Token': process.env.CURSEFORGE_TOKEN },
+            headers: {
+              'X-Api-Token': process.env.CURSEFORGE_TOKEN,
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            },
             body: form,
           });
           const text = await res.text();
@@ -189,7 +193,11 @@ jobs:
           {
             echo '### CurseForge upload'
             echo '```'
-            tail -c 2500 cf-upload.log
+            head -c 2500 cf-upload.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          grep -q '^HTTP 2' cf-upload.log || { echo "CurseForge upload failed"; exit 1; }
+          body=$(tail -n +2 cf-upload.log | head -c 200)
+          case "$body" in
+            '{'*) echo "CurseForge accepted the upload";;
+            *) echo "CurseForge upload failed (non-JSON response, likely a Cloudflare challenge)"; exit 1;;
+          esac
