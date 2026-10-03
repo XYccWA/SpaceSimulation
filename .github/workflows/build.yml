@@ -150,37 +150,22 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "CurseForge changelog: $(wc -c < CURSEFORGE_CHANGELOG.md) bytes"
 
-      # 11. 上传到 CurseForge（project 1720899；发行类型 beta；1.21.1 + NeoForge + Java 21）。
-      #     直接调 CurseForge legacy 上传 API（POST /api/projects/{id}/upload + X-Api-Token）。
-      #     不用 itsmeow/curseforge-upload：它在客户端把版本名解析成 game version ID，实测会得到
-      #     一个被 CF 拒绝的 ID（1009 "Invalid game version ID ... belongs to an invalid dependency"）；
-      #     这里改为把版本名原样放进 metadata.gameVersions，由 CF 服务端自己解析。
+      # 11. 上传到 CurseForge（project 1720899；发行类型 beta；1.21.1 + NeoForge）。
       #     依赖仓库 Secret CURSEFORGE_TOKEN —— 未配置时本步被跳过。
+      #     注意：game_versions 里不要带 "Java 21" —— 实测该标签会让 CF 拒绝上传
+      #     （1009 Invalid game version ID ... belongs to an invalid dependency）。
+      #     另外不要改用 curl 直连：minecraft.curseforge.com 的 Cloudflare 会挑战 curl，
+      #     请求只会拿到 3xx/HTML（curl 视为成功但文件根本没建），itsmeow action 的请求才能到达业务层。
       - name: Upload to CurseForge
         if: env.CURSEFORGE_TOKEN != ''
-        env:
-          MOD_VERSION: ${{ steps.get_mod_info.outputs.mod_version }}
-          RELEASE_NAME: ${{ steps.get_mod_info.outputs.release_name }}
-        run: |
-          python3 - <<'PY'
-          import json, os
-          changelog = open('CURSEFORGE_CHANGELOG.md', encoding='utf-8').read()
-          meta = {
-              "changelog": changelog,
-              "changelogType": "markdown",
-              "displayName": os.environ["RELEASE_NAME"],
-              "releaseType": "beta",
-              "gameVersions": ["1.21.1", "NeoForge", "Java 21"],
-          }
-          with open('cf-metadata.json', 'w', encoding='utf-8') as f:
-              json.dump(meta, f, ensure_ascii=False)
-          print("metadata (head):", json.dumps(meta, ensure_ascii=False)[:160])
-          PY
-          echo "--- uploading: $(ls -l build/libs/${RELEASE_NAME}.jar) ---"
-          curl -sS --fail-with-body --retry 2 \
-            -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
-            -X POST "https://minecraft.curseforge.com/api/projects/1720899/upload" \
-            -H "X-Api-Token: ${CURSEFORGE_TOKEN}" \
-            -F "metadata=@cf-metadata.json;type=application/json" \
-            -F "file=@build/libs/${RELEASE_NAME}.jar" \
-            -w "\nHTTP %{http_code}\n"
+        uses: itsmeow/curseforge-upload@v3
+        with:
+          token: ${{ env.CURSEFORGE_TOKEN }}
+          project_id: "1720899"
+          game_endpoint: minecraft
+          file_path: build/libs/${{ steps.get_mod_info.outputs.release_name }}.jar
+          display_name: ${{ steps.get_mod_info.outputs.release_name }}
+          game_versions: "1.21.1,NeoForge"
+          release_type: beta
+          changelog_type: markdown
+          changelog: ${{ steps.cf_notes.outputs.body }}
