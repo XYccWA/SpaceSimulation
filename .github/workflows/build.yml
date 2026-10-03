@@ -24,10 +24,6 @@ env:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    # CurseForge 上传用的 API Token（仓库 Settings → Secrets and variables → Actions 里的
-    # CURSEFORGE_TOKEN）。未配置时第 10 步会被整体跳过，GitHub Release 不受任何影响。
-    env:
-      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
     steps:
       # 1. 签出代码
       #    fetch-depth: 0 —— 必须取完整历史，否则浅克隆里拿不到 tag 对象，
@@ -127,77 +123,3 @@ jobs:
             build/libs/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 10. 准备 CurseForge 用的 changelog：优先复用 tag 注释（RELEASE_NOTES.md），
-      #     取不到（例如 workflow_dispatch 手动触发）时退化为一句话 + GitHub Release 链接。
-      - name: Prepare CurseForge changelog
-        id: cf_notes
-        run: |
-          if [ -s RELEASE_NOTES.md ]; then
-            cp RELEASE_NOTES.md CURSEFORGE_CHANGELOG.md
-          else
-            {
-              echo "## ${{ steps.get_mod_info.outputs.release_name }}"
-              echo
-              echo "完整改动说明见 GitHub Release："
-              echo "https://github.com/${{ github.repository }}/releases/tag/v${{ steps.get_mod_info.outputs.mod_version }}"
-            } > CURSEFORGE_CHANGELOG.md
-          fi
-          {
-            echo 'body<<CF_CHANGELOG_EOF'
-            cat CURSEFORGE_CHANGELOG.md
-            echo 'CF_CHANGELOG_EOF'
-          } >> "$GITHUB_OUTPUT"
-          echo "CurseForge changelog: $(wc -c < CURSEFORGE_CHANGELOG.md) bytes"
-
-      # 11. 上传到 CurseForge（project 1720899；发行类型 beta；1.21.1 + NeoForge）。
-      #     依赖仓库 Secret CURSEFORGE_TOKEN —— 未配置时本步被跳过。
-      #     为什么不用现成 action、也不用 curl：
-      #       * curl 直连 minecraft.curseforge.com 会被 Cloudflare 挑战（拿到 3xx/HTML，curl 视为成功但文件没建）；
-      #       * itsmeow/curseforge-upload 在客户端把版本名解析成 game version ID，实测得到被 CF 拒绝的 ID
-      #         （1009 Invalid game version ID ... belongs to an invalid dependency）。
-      #     这里用 runner 自带的 node fetch（与 action 相同的网络栈，能过 Cloudflare）直接调上传 API，
-      #     并把 HTTP 状态与响应体写进 Step Summary，便于失败时在 run 页面直接看到原因。
-      - name: Upload to CurseForge
-        if: env.CURSEFORGE_TOKEN != ''
-        env:
-          RELEASE_NAME: ${{ steps.get_mod_info.outputs.release_name }}
-        run: |
-          node --input-type=module - <<'JS' > cf-upload.log 2>&1
-          import fs from 'node:fs';
-          const changelog = fs.readFileSync('CURSEFORGE_CHANGELOG.md', 'utf8');
-          const meta = {
-            changelog,
-            changelogType: 'markdown',
-            displayName: process.env.RELEASE_NAME,
-            releaseType: 'beta',
-            gameVersions: ['1.21.1', 'NeoForge'],
-          };
-          const form = new FormData();
-          form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json' }), 'metadata.json');
-          form.append('file', new Blob([fs.readFileSync(`build/libs/${process.env.RELEASE_NAME}.jar`)]), `${process.env.RELEASE_NAME}.jar`);
-          const res = await fetch('https://minecraft.curseforge.com/api/projects/1720899/upload', {
-            method: 'POST',
-            headers: {
-              'X-Api-Token': process.env.CURSEFORGE_TOKEN,
-              'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            },
-            body: form,
-          });
-          const text = await res.text();
-          console.log(`HTTP ${res.status}`);
-          console.log(text.slice(0, 3000));
-          JS
-          cat cf-upload.log
-          {
-            echo '### CurseForge upload'
-            echo '```'
-            head -c 2500 cf-upload.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          body=$(tail -n +2 cf-upload.log | head -c 200)
-          case "$body" in
-            '{'*) echo "CurseForge accepted the upload";;
-            *) echo "CurseForge upload failed (non-JSON response, likely a Cloudflare challenge)"; exit 1;;
-          esac
